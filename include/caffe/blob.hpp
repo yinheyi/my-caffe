@@ -9,16 +9,12 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/syncedmem.hpp"
 
-const int kMaxBlobAxes = 32;
+const int kMaxBlobAxes = 32;        // blob数据块最大的维度
 
 namespace caffe {
 
 /**
- * @brief A wrapper around SyncedMemory holders serving as the basic
- *        computational unit through which Layer%s, Net%s, and Solver%s
- *        interact.
- *
- * TODO(dox): more thorough description.
+  @brief
  */
 template <typename Dtype>
 class Blob {
@@ -26,31 +22,42 @@ class Blob {
   Blob()
        : data_(), diff_(), count_(0), capacity_(0) {}
 
-  /// @brief Deprecated; use <code>Blob(const vector<int>& shape)</code>.
+  /** @brief 功能描述： 初始化一个数据块， 该函数已经是废弃，不应该再使用.
+      @param [in] num       blob块内的数据维度
+      @param [in] channels  blob块内数据维度
+      @param [in] height    blob块内数据维度
+      @param [in] width     blob块内数据维度 
+   */
   explicit Blob(const int num, const int channels, const int height,
       const int width);
+  /** @brief 功能描述： 初始化一个数据块.  */
   explicit Blob(const vector<int>& shape);
 
-  /// @brief Deprecated; use <code>Reshape(const vector<int>& shape)</code>.
-  void Reshape(const int num, const int channels, const int height,
-      const int width);
-  /**
-   * @brief Change the dimensions of the blob, allocating new memory if
-   *        necessary.
-   *
-   * This function can be called both to create an initial allocation
-   * of memory, and to adjust the dimensions of a top blob during Layer::Reshape
-   * or Layer::Forward. When changing the size of blob, memory will only be
-   * reallocated if sufficient memory does not already exist, and excess memory
-   * will never be freed.
-   *
-   * Note that reshaping an input blob and immediately calling Net::Backward is
-   * an error; either Net::Forward or Net::Reshape need to be called to
-   * propagate the new input shape to higher layers.
+  /** @brief 功能描述： reshape一个[num * channels * height * width] 的blob块。
+      @param [in] num      第一维度的大小
+      @param [in] channels 第二维度的大小
+      @param [in] height   第三维度的大小
+      @param [in] width    第四维度的大小
+
+      额外说明：该函数已经弃用了，不应该 再被使用。 
+   */
+  void Reshape(const int num, const int channels, const int height, const int width);
+  /** @brief 功能描述： reshape一个指定维度的blob块。
+      @param [in] shape 该参数是一个vector, 这里存放了维度值,如：[2, 5, 6, 22]
+
+      当reshape时，如果内存空间不足，则会重新申请一块足够的内存，如果blob块之前的内存
+      空间(capacity)大时，也不会释放多余的空间。对于blob块，有两个参数：count_和capacity
+      count_表示当前的blob块内数据的大小，capacity表示blob块的内存空间大小,  类似于vector
+      的size()和capacity().  
    */
   void Reshape(const vector<int>& shape);
+  /** @brief 功能描述：通过BlobShape结构传递shape值进行reshape */
   void Reshape(const BlobShape& shape);
+  /** @brief 功能描述：通过一个其它的Blob的形状传递shape值进行reshape */
   void ReshapeLike(const Blob& other);
+  /** @brief 功能描述： 返回当前blob块的shape的字符串描述。例如：如果当前的shape为[2,3,4],
+    则会返回这样的字符串：2 3 4 (12).
+    */
   inline string shape_string() const {
     ostringstream stream;
     for (int i = 0; i < shape_.size(); ++i) {
@@ -59,29 +66,27 @@ class Blob {
     stream << "(" << count_ << ")";
     return stream.str();
   }
+  /** @brief 功能描述： 返回当前blob块的形状大小, 返回值是一个vector。*/
   inline const vector<int>& shape() const { return shape_; }
-  /**
-   * @brief Returns the dimension of the index-th axis (or the negative index-th
-   *        axis from the end, if index is negative).
-   *
-   * @param index the axis index, which may be negative as it will be
-   *        "canonicalized" using CanonicalAxisIndex.
-   *        Dies on out of range index.
-   */
+  /** @brief 该函数返回给定下标的shape的值, 该值可以为负整数，表示倒数第几个。
+      @param [in] index 给定的下标值，如果当前的shape维度为7,则index应该是区间[-7, 7)的正
+      整数。
+
+      注意：1. 下标是从0表示的. 
+            2. 下标为负整数时表示倒数第几个，例如-2,表示倒数第2个。
+    */
   inline int shape(int index) const {
     return shape_[CanonicalAxisIndex(index)];
   }
+  /** @brief 功能描述： 返回当前blob块的维度大小。*/
   inline int num_axes() const { return shape_.size(); }
+  /** @biref 功能描述： 返回当前blob块的大小。*/
   inline int count() const { return count_; }
-
   /**
-   * @brief Compute the volume of a slice; i.e., the product of dimensions
-   *        among a range of axes.
-   *
-   * @param start_axis The first axis to include in the slice.
-   *
-   * @param end_axis The first axis to exclude from the slice.
-   */
+    @brief 功能描述： 该函数返回给定维度区间[start_axis, end_axis)上的大小（体积).
+    @param [in] start_axis 开始的维度
+    @param [in] end_axis 终止的维度
+    */
   inline int count(int start_axis, int end_axis) const {
     CHECK_LE(start_axis, end_axis);
     CHECK_GE(start_axis, 0);
@@ -95,26 +100,22 @@ class Blob {
     return count;
   }
   /**
-   * @brief Compute the volume of a slice spanning from a particular first
-   *        axis to the final axis.
-   *
-   * @param start_axis The first axis to include in the slice.
-   */
+    @brief 功能描述： 该函数返回给定维度区间[start_axis, 末尾)上的大小（体积).
+    @param [in] start_axis 开始的维度
+    */
   inline int count(int start_axis) const {
     return count(start_axis, num_axes());
   }
 
   /**
-   * @brief Returns the 'canonical' version of a (usually) user-specified axis,
-   *        allowing for negative indexing (e.g., -1 for the last axis).
-   *
-   * @param axis_index the axis index.
-   *        If 0 <= index < num_axes(), return index.
-   *        If -num_axes <= index <= -1, return (num_axes() - (-index)),
-   *        e.g., the last axis index (num_axes() - 1) if index == -1,
-   *        the second to last if index == -2, etc.
-   *        Dies on out of range index.
-   */
+    @brief 功能描述： 该函数负责把给定在区间[-num_axes, num_axes)上的整数规范化
+           到区间[0, num_axes)上。
+    @param [in] axis_index 给定的维度索引。
+
+    具体来说，对于在区间[0, num_axes)上的整数保持不变，对区间[-num_axes, 0)上的整
+    数值加上num_axes. 例如：如果num_axes为7, 给定了一个-1, 则返回6. 因为倒数第1个
+    数就是正数第6个(从0开始).
+    */
   inline int CanonicalAxisIndex(int axis_index) const {
     CHECK_GE(axis_index, -num_axes())
         << "axis " << axis_index << " out of range for " << num_axes()
@@ -128,28 +129,25 @@ class Blob {
     return axis_index;
   }
 
-  /// @brief Deprecated legacy shape accessor num: use shape(0) instead.
+  /** 下面几个函数就是之前代码遗留下来的，，返回num/chanels/height/width的维度大小
+      其中LegacyShape()函数负责检测给定的维度索引值是不是有效。*/
   inline int num() const { return LegacyShape(0); }
-  /// @brief Deprecated legacy shape accessor channels: use shape(1) instead.
   inline int channels() const { return LegacyShape(1); }
-  /// @brief Deprecated legacy shape accessor height: use shape(2) instead.
   inline int height() const { return LegacyShape(2); }
-  /// @brief Deprecated legacy shape accessor width: use shape(3) instead.
   inline int width() const { return LegacyShape(3); }
   inline int LegacyShape(int index) const {
     CHECK_LE(num_axes(), 4)
         << "Cannot use legacy accessors on Blobs with > 4 axes.";
     CHECK_LT(index, 4);
     CHECK_GE(index, -4);
-    if (index >= num_axes() || index < -num_axes()) {
-      // Axis is out of range, but still in [0, 3] (or [-4, -1] for reverse
-      // indexing) -- this special case simulates the one-padding used to fill
-      // extraneous axes of legacy blobs.
+    if (index >= num_axes() || index < -num_axes())    // 这个地方返回1是合理的。
       return 1;
-    }
     return shape(index);
   }
 
+  /** @brief 计算给定坐标数据的偏移量， 这个偏移量用于从内存中取数据啊。
+      @param [in] n, c, h, w 四个参数指针了每一维度的坐标值。
+    */
   inline int offset(const int n, const int c = 0, const int h = 0,
       const int w = 0) const {
     CHECK_GE(n, 0);
@@ -163,6 +161,15 @@ class Blob {
     return ((n * channels() + c) * height() + h) * width() + w;
   }
 
+  /** @brief 计算给定坐标数据的偏移量， 这个偏移量用于从内存中取数据啊。
+      @param [in] indices 该参数是一个vector, 里面的数据指定了每一维度的坐标值。
+
+      说明两点：
+      1.从下面的代码中可以看出来，在blob块中的shape低索引的维度的值变化慢，高索
+      引的维度的值变化快，意思就是说数据总是先填满高索引的维度空间。
+      2. 对于参数vector, 如果blob为7维的，vector的值为[1,2]时，则默认返回的坐标
+      是[1, 2, 0, 0, 0, 0, 0]的偏移值。
+    */
   inline int offset(const vector<int>& indices) const {
     CHECK_LE(indices.size(), num_axes());
     int offset = 0;
@@ -176,41 +183,43 @@ class Blob {
     }
     return offset;
   }
-  /**
-   * @brief Copy from a source Blob.
-   *
-   * @param source the Blob to copy from
-   * @param copy_diff if false, copy the data; if true, copy the diff
-   * @param reshape if false, require this Blob to be pre-shaped to the shape
-   *        of other (and die otherwise); if true, Reshape this Blob to other's
-   *        shape if necessary
-   */
+
+  /** @brief 功能描述：从另一个blob块中拷贝数据至当前blob块。
+      @param [in] source    源blob块
+      @param [in] copy_diff 当为true时，拷贝diff数据，当为false时，拷贝data数据
+      @param [in] reshape   当为true时，进行reshape,否则不进行reshape(此时如果不满足要求
+                            会报错。
+    */
   void CopyFrom(const Blob<Dtype>& source, bool copy_diff = false,
       bool reshape = false);
 
+  /** @brief 功能描述： 返回给定坐标处的数据值 */
   inline Dtype data_at(const int n, const int c, const int h,
       const int w) const {
     return cpu_data()[offset(n, c, h, w)];
   }
-
-  inline Dtype diff_at(const int n, const int c, const int h,
-      const int w) const {
-    return cpu_diff()[offset(n, c, h, w)];
-  }
-
+  /** @brief 功能描述： 返回给定坐标处的数据值 */
   inline Dtype data_at(const vector<int>& index) const {
     return cpu_data()[offset(index)];
   }
 
+  /** @brief 功能描述： 返回给定坐标处的diff值 */
+  inline Dtype diff_at(const int n, const int c, const int h,
+      const int w) const {
+    return cpu_diff()[offset(n, c, h, w)];
+  }
+  /** @brief 功能描述： 返回给定坐标处的diff值 */
   inline Dtype diff_at(const vector<int>& index) const {
     return cpu_diff()[offset(index)];
   }
 
+  /** @brief 功能描述： 返回该blob块中管理data的syncedmemory指针 */
   inline const shared_ptr<SyncedMemory>& data() const {
     CHECK(data_);
     return data_;
   }
 
+  /** @brief 功能描述： 返回该blob块中管理diff的syncedmemory指针 */
   inline const shared_ptr<SyncedMemory>& diff() const {
     CHECK(diff_);
     return diff_;

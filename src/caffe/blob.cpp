@@ -9,6 +9,23 @@
 namespace caffe {
 
 template <typename Dtype>
+Blob<Dtype>::Blob(const int num, const int channels, const int height,
+    const int width)
+  // capacity_ must be initialized before calling Reshape
+  : capacity_(0) {
+  Reshape(num, channels, height, width);
+}
+
+template <typename Dtype>
+Blob<Dtype>::Blob(const vector<int>& shape)
+  // capacity_ must be initialized before calling Reshape
+  : capacity_(0) {
+  Reshape(shape);
+}
+
+
+// reshape一个[num * channels * height * width] 的blob块。
+template <typename Dtype>
 void Blob<Dtype>::Reshape(const int num, const int channels, const int height,
     const int width) {
   vector<int> shape(4);
@@ -24,9 +41,15 @@ void Blob<Dtype>::Reshape(const vector<int>& shape) {
   CHECK_LE(shape.size(), kMaxBlobAxes);
   count_ = 1;
   shape_.resize(shape.size());
+
+   // 当存放shape的[shape__data_]内存空间不存在或不足时，新new一块空间。
   if (!shape_data_ || shape_data_->size() < shape.size() * sizeof(int)) {
     shape_data_.reset(new SyncedMemory(shape.size() * sizeof(int)));
   }
+
+  /* 把shape的值写入在shape_data_中去，并更新count的值为最新的blob块大小。
+     在修改shape时会检测： a. 每一个维度必要大于0； b.count_的值没有超过
+     blob块最大容量。*/
   int* shape_data = static_cast<int*>(shape_data_->mutable_cpu_data());
   for (int i = 0; i < shape.size(); ++i) {
     CHECK_GE(shape[i], 0);
@@ -37,6 +60,9 @@ void Blob<Dtype>::Reshape(const vector<int>& shape) {
     shape_[i] = shape[i];
     shape_data[i] = shape[i];
   }
+
+  /* 检查当前blob块的大小是否超过了它的capacity, 如果是，就需要新重新申请
+    data_和diff_的内存空间了。*/
   if (count_ > capacity_) {
     capacity_ = count_;
     data_.reset(new SyncedMemory(capacity_ * sizeof(Dtype)));
@@ -44,6 +70,7 @@ void Blob<Dtype>::Reshape(const vector<int>& shape) {
   }
 }
 
+// 使用blobshape的数据结构来传递shape的大小。
 template <typename Dtype>
 void Blob<Dtype>::Reshape(const BlobShape& shape) {
   CHECK_LE(shape.dim_size(), kMaxBlobAxes);
@@ -54,24 +81,10 @@ void Blob<Dtype>::Reshape(const BlobShape& shape) {
   Reshape(shape_vec);
 }
 
+// 使用另一个blob块的形状来传递shape的大小。
 template <typename Dtype>
 void Blob<Dtype>::ReshapeLike(const Blob<Dtype>& other) {
   Reshape(other.shape());
-}
-
-template <typename Dtype>
-Blob<Dtype>::Blob(const int num, const int channels, const int height,
-    const int width)
-  // capacity_ must be initialized before calling Reshape
-  : capacity_(0) {
-  Reshape(num, channels, height, width);
-}
-
-template <typename Dtype>
-Blob<Dtype>::Blob(const vector<int>& shape)
-  // capacity_ must be initialized before calling Reshape
-  : capacity_(0) {
-  Reshape(shape);
 }
 
 template <typename Dtype>
@@ -80,6 +93,7 @@ const int* Blob<Dtype>::gpu_shape() const {
   return (const int*)shape_data_->gpu_data();
 }
 
+/* 返回data在cpu上的数据 */
 template <typename Dtype>
 const Dtype* Blob<Dtype>::cpu_data() const {
   CHECK(data_);
@@ -431,6 +445,8 @@ bool Blob<Dtype>::ShapeEquals(const BlobProto& other) {
 
 template <typename Dtype>
 void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
+  /* 当两个blob块的大小或shape形状不相同时，应该进行reshape,如果没有
+     指定进行reshape,则报错！ */
   if (source.count() != count_ || source.shape() != shape_) {
     if (reshape) {
       ReshapeLike(source);
@@ -438,6 +454,8 @@ void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
       LOG(FATAL) << "Trying to copy blobs of different sizes.";
     }
   }
+
+  /* 根据选中gpu模式还是cpu模式，拷贝显存数据或内存数据。*/
   switch (Caffe::mode()) {
   case Caffe::GPU:
     if (copy_diff) {

@@ -42,7 +42,7 @@ SyncedMemory::~SyncedMemory() {
 inline void SyncedMemory::to_cpu() {
   check_device();
   switch (head_) {
-  case UNINITIALIZED:
+  case UNINITIALIZED:    // 在使用的时候才申请内存。
     CaffeMallocHost(&cpu_ptr_, size_, &cpu_malloc_use_cuda_);
     caffe_memset(size_, 0, cpu_ptr_);
     head_ = HEAD_AT_CPU;
