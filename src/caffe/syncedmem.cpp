@@ -23,6 +23,9 @@ SyncedMemory::SyncedMemory(size_t size)
 #endif
 }
 
+/**
+  在析构函数中，对它拥有的内存进行释放。
+  */
 SyncedMemory::~SyncedMemory() {
   check_device();
   if (cpu_ptr_ && own_cpu_data_) {
