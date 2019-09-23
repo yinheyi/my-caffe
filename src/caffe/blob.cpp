@@ -178,18 +178,15 @@ void Blob<Dtype>::ShareDiff(const Blob& other) {
   diff_ = other.diff();
 }
 
-// The "update" method is used for parameter blobs in a Net, which are stored
-// as Blob<float> or Blob<double> -- hence we do not define it for
-// Blob<int> or Blob<unsigned int>.
 template <> void Blob<unsigned int>::Update() { NOT_IMPLEMENTED; }
 template <> void Blob<int>::Update() { NOT_IMPLEMENTED; }
 
+/** 调用cblas库计算 -1 * diff + data. */
 template <typename Dtype>
 void Blob<Dtype>::Update() {
-  // We will perform update based on where the data is located.
   switch (data_->head()) {
-  case SyncedMemory::HEAD_AT_CPU:
-    // perform computation on CPU
+  case SyncedMemory::HEAD_AT_CPU: 
+    // 当数据在cpu上时，就使用cpu调用cblas库进行计算, 注意它的修改data的值的。
     caffe_axpy<Dtype>(count_, Dtype(-1),
         static_cast<const Dtype*>(diff_->cpu_data()),
         static_cast<Dtype*>(data_->mutable_cpu_data()));
@@ -197,7 +194,7 @@ void Blob<Dtype>::Update() {
   case SyncedMemory::HEAD_AT_GPU:
   case SyncedMemory::SYNCED:
 #ifndef CPU_ONLY
-    // perform computation on GPU
+    // 当数据在gpu上时，使用gpu进行计算。
     caffe_gpu_axpy<Dtype>(count_, Dtype(-1),
         static_cast<const Dtype*>(diff_->gpu_data()),
         static_cast<Dtype*>(data_->mutable_gpu_data()));
@@ -220,6 +217,7 @@ template <> int Blob<int>::asum_data() const {
   return 0;
 }
 
+// 使用cpu或者gpu计算data的绝对值的和。
 template <typename Dtype>
 Dtype Blob<Dtype>::asum_data() const {
   if (!data_) { return 0; }
@@ -455,7 +453,8 @@ void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
     }
   }
 
-  /* 根据选中gpu模式还是cpu模式，拷贝显存数据或内存数据。*/
+  /* 根据选中gpu模式还是cpu模式，拷贝显存数据或内存数据。 当copy_diff为
+     true时， 拷贝diff, 否则的话拷贝data. */
   switch (Caffe::mode()) {
   case Caffe::GPU:
     if (copy_diff) {
@@ -482,6 +481,7 @@ void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
 
 template <typename Dtype>
 void Blob<Dtype>::FromProto(const BlobProto& proto, bool reshape) {
+  // 从BlobProto中读取shape相关的值，进行reshape.
   if (reshape) {
     vector<int> shape;
     if (proto.has_num() || proto.has_channels() ||
@@ -503,7 +503,8 @@ void Blob<Dtype>::FromProto(const BlobProto& proto, bool reshape) {
   } else {
     CHECK(ShapeEquals(proto)) << "shape mismatch (reshape not set)";
   }
-  // copy data
+
+  // 拷贝data,可能是double,也可能是float.
   Dtype* data_vec = mutable_cpu_data();
   if (proto.double_data_size() > 0) {
     CHECK_EQ(count_, proto.double_data_size());
@@ -516,6 +517,8 @@ void Blob<Dtype>::FromProto(const BlobProto& proto, bool reshape) {
       data_vec[i] = proto.data(i);
     }
   }
+
+  // 拷贝diff,可能是double,也可能是float.
   if (proto.double_diff_size() > 0) {
     CHECK_EQ(count_, proto.double_diff_size());
     Dtype* diff_vec = mutable_cpu_diff();
@@ -534,15 +537,20 @@ void Blob<Dtype>::FromProto(const BlobProto& proto, bool reshape) {
 template <>
 void Blob<double>::ToProto(BlobProto* proto, bool write_diff) const {
   proto->clear_shape();
+  // 把shape的数据写到BlobProto中。
   for (int i = 0; i < shape_.size(); ++i) {
     proto->mutable_shape()->add_dim(shape_[i]);
   }
   proto->clear_double_data();
   proto->clear_double_diff();
+
+  // 把data写到BlobProto中。
   const double* data_vec = cpu_data();
   for (int i = 0; i < count_; ++i) {
     proto->add_double_data(data_vec[i]);
   }
+
+  // 把diff写到BlobProto中。
   if (write_diff) {
     const double* diff_vec = cpu_diff();
     for (int i = 0; i < count_; ++i) {

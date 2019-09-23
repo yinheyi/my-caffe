@@ -47,7 +47,7 @@ class Blob {
 
       当reshape时，如果内存空间不足，则会重新申请一块足够的内存，如果blob块之前的内存
       空间(capacity)大时，也不会释放多余的空间。对于blob块，有两个参数：count_和capacity
-      count_表示当前的blob块内数据的大小，capacity表示blob块的内存空间大小,  类似于vector
+      count_表示当前的blob块内数据的个数，capacity表示blob块的内存空间大小,  类似于vector
       的size()和capacity().  
    */
   void Reshape(const vector<int>& shape);
@@ -189,6 +189,8 @@ class Blob {
       @param [in] copy_diff 当为true时，拷贝diff数据，当为false时，拷贝data数据
       @param [in] reshape   当为true时，进行reshape,否则不进行reshape(此时如果不满足要求
                             会报错。
+
+     疑问：为什么不同时拷贝data和diff呢？
     */
   void CopyFrom(const Blob<Dtype>& source, bool copy_diff = false,
       bool reshape = false);
@@ -224,78 +226,55 @@ class Blob {
     CHECK(diff_);
     return diff_;
   }
-  /** @brief 功能描述：该函数获取cpu上的data的数据内存空间的指针，不能通过该指针改变data数据。*/
+
   const Dtype* cpu_data() const;
-
   Dtype* mutable_cpu_data();
-  /** @Brief 功能描述：把cpu的data的指针指向给定的数据空间。
-      @param [in] data 给定的数据空间指针，该空间是在其它地方申请的.
-    */
   void set_cpu_data(Dtype* data);
-  /** @brief 功能描述：该函数获取gpu上的data的数据内存空间的指针，不能通过该指针改变data数据。*/
+
   const Dtype* gpu_data() const;
-  /** @brief 功能描述：该函数获取gpu上的data的数据内存空间的指针，可能通过该指针改变data数据。*/
   Dtype* mutable_gpu_data();
-  /** @Brief 功能描述：把gpu的data的指针指向给定的数据空间。
-    @param [in] data 给定的数据空间指针，该空间是在其它地方申请的.
-   */
   void set_gpu_data(Dtype* data);
-  /** @brief 功能描述：该函数获取cpu上的diff的数据内存空间的指针，不能通过该指针改变diff数据。*/
+
   const Dtype* cpu_diff() const;
-  /** @brief 功能描述：该函数获取cpu上的diff的数据内存空间的指针，可以通过该指针改变diff数据。*/
   Dtype* mutable_cpu_diff();
-  /** @brief 功能描述：该函数获取gpu上的diff的数据内存空间的指针，不能通过该指针改变diff数据。*/
+
   const Dtype* gpu_diff() const;
-  /** @brief 功能描述：该函数获取gpu上的diff的数据内存空间的指针，可以通过该指针改变diff数据。*/
   Dtype* mutable_gpu_diff();
-  /** @brief 功能描述：该函数获取gpu上的shape的数据内存空间的指针，不可以通过该指针改变diff数据。*/
+
   const int* gpu_shape() const;
+
+  /** @brief 该函数更新data的值： new_data = -1 * diff + data. */
   void Update();
+  /** @brief 从BlobProto中读取数据进行构造blob块,用于从保存的模型数据中恢复网络模型 */
   void FromProto(const BlobProto& proto, bool reshape = true);
+  /** @brief 把blob块的shape和data写到BlobProto中, write_diff控制是否写入diff */
   void ToProto(BlobProto* proto, bool write_diff = false) const;
-
-  /// @brief Compute the sum of absolute values (L1 norm) of the data.
+  /** @brief 计算data的绝对值的和, absolute sum */
   Dtype asum_data() const;
-  /// @brief Compute the sum of absolute values (L1 norm) of the diff.
+  /** @brief 计算diff的绝对值的和, absolute sum */
   Dtype asum_diff() const;
-  /// @brief Compute the sum of squares (L2 norm squared) of the data.
+  /** @brief 计算data的平和的和, square sum */
   Dtype sumsq_data() const;
-  /// @brief Compute the sum of squares (L2 norm squared) of the diff.
+  /** @brief 计算diff的平和的和, square sum */
   Dtype sumsq_diff() const;
-
-  /// @brief Scale the blob data by a constant factor.
+  /** @brief 为data的值乘上一个因子facor */
   void scale_data(Dtype scale_factor);
-  /// @brief Scale the blob diff by a constant factor.
+  /** @brief 为diff的值乘上一个因子facor */
   void scale_diff(Dtype scale_factor);
-
-  /**
-   * @brief Set the data_ shared_ptr to point to the SyncedMemory holding the
-   *        data_ of Blob other -- useful in Layer%s which simply perform a copy
-   *        in their Forward pass.
-   *
-   * This deallocates the SyncedMemory holding this Blob's data_, as
-   * shared_ptr calls its destructor when reset with the "=" operator.
-   */
+  /** @brief 共用另一个blob块的data值 */
   void ShareData(const Blob& other);
-  /**
-   * @brief Set the diff_ shared_ptr to point to the SyncedMemory holding the
-   *        diff_ of Blob other -- useful in Layer%s which simply perform a copy
-   *        in their Forward pass.
-   *
-   * This deallocates the SyncedMemory holding this Blob's diff_, as
-   * shared_ptr calls its destructor when reset with the "=" operator.
-   */
+  /** @brief 共用另一个blob块的diff值。 */
   void ShareDiff(const Blob& other);
-
+  /** @brief 判断两个blob块的shape是否相同。 */
   bool ShapeEquals(const BlobProto& other);
 
  protected:
-  shared_ptr<SyncedMemory> data_;
-  shared_ptr<SyncedMemory> diff_;
-  shared_ptr<SyncedMemory> shape_data_;
-  vector<int> shape_;
-  int count_;
-  int capacity_;
+  shared_ptr<SyncedMemory> data_;        // blob块中data数据的指针
+  shared_ptr<SyncedMemory> diff_;        // blob块中diff数据的指针
+  shared_ptr<SyncedMemory> shape_data_;  // blob块中diff数据的指针
+  vector<int> shape_;      // 该blob块的形状, 如[2,4,4]
+  int count_;              // 该blob块中数据总数
+  int capacity_;           // 该blob块的总容量
 
   DISABLE_COPY_AND_ASSIGN(Blob);
 };  // class Blob
