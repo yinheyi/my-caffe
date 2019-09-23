@@ -224,18 +224,32 @@ class Blob {
     CHECK(diff_);
     return diff_;
   }
-
+  /** @brief 功能描述：该函数获取cpu上的data的数据内存空间的指针，不能通过该指针改变data数据。*/
   const Dtype* cpu_data() const;
-  void set_cpu_data(Dtype* data);
-  const int* gpu_shape() const;
-  const Dtype* gpu_data() const;
-  void set_gpu_data(Dtype* data);
-  const Dtype* cpu_diff() const;
-  const Dtype* gpu_diff() const;
+
   Dtype* mutable_cpu_data();
+  /** @Brief 功能描述：把cpu的data的指针指向给定的数据空间。
+      @param [in] data 给定的数据空间指针，该空间是在其它地方申请的.
+    */
+  void set_cpu_data(Dtype* data);
+  /** @brief 功能描述：该函数获取gpu上的data的数据内存空间的指针，不能通过该指针改变data数据。*/
+  const Dtype* gpu_data() const;
+  /** @brief 功能描述：该函数获取gpu上的data的数据内存空间的指针，可能通过该指针改变data数据。*/
   Dtype* mutable_gpu_data();
+  /** @Brief 功能描述：把gpu的data的指针指向给定的数据空间。
+    @param [in] data 给定的数据空间指针，该空间是在其它地方申请的.
+   */
+  void set_gpu_data(Dtype* data);
+  /** @brief 功能描述：该函数获取cpu上的diff的数据内存空间的指针，不能通过该指针改变diff数据。*/
+  const Dtype* cpu_diff() const;
+  /** @brief 功能描述：该函数获取cpu上的diff的数据内存空间的指针，可以通过该指针改变diff数据。*/
   Dtype* mutable_cpu_diff();
+  /** @brief 功能描述：该函数获取gpu上的diff的数据内存空间的指针，不能通过该指针改变diff数据。*/
+  const Dtype* gpu_diff() const;
+  /** @brief 功能描述：该函数获取gpu上的diff的数据内存空间的指针，可以通过该指针改变diff数据。*/
   Dtype* mutable_gpu_diff();
+  /** @brief 功能描述：该函数获取gpu上的shape的数据内存空间的指针，不可以通过该指针改变diff数据。*/
+  const int* gpu_shape() const;
   void Update();
   void FromProto(const BlobProto& proto, bool reshape = true);
   void ToProto(BlobProto* proto, bool write_diff = false) const;
