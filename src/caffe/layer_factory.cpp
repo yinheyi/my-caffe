@@ -37,6 +37,7 @@
 namespace caffe {
 
 // Get convolution layer according to engine.
+// 定义了获取卷积层layer的函数，并通过宏函数把它注册到了creator 注册表中。
 template <typename Dtype>
 shared_ptr<Layer<Dtype> > GetConvolutionLayer(
     const LayerParameter& param) {
