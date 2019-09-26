@@ -98,19 +98,38 @@ void InnerProductLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 
 
 /* 调用gemm()函数来完成矩阵运算, 参数如下：
-   Caffe_gemm(矩阵A是否转置， 矩阵B是否转置， 矩阵A的行， 矩阵B的列， 矩阵A的列或矩阵
-   B的行，Alpha, 矩阵A的地址， 矩阵B的地址， Beta, 矩阵C).
-   
-   矩阵C = Alpha * 矩阵A × 矩阵B + Beta * 矩阵C  */
+   Caffe_gemm(矩阵A是否转置， 矩阵B是否转置， P(矩阵A)的行， P(矩阵B)的列，
+             P(矩阵A)的列或P(矩阵B)的行，Alpha, 矩阵A的地址， 矩阵B的地址，
+             Beta, 矩阵C).
+   矩阵C = Alpha * 矩阵A × 矩阵B + Beta * 矩阵C
+
+    如果矩阵A不进行转置，则P(矩阵A）等于矩阵A, 否则等于矩阵A的转置。
+    如果矩阵B不进行转置，则P(矩阵B）等于矩阵B, 否则等于矩阵B的转置。
+
+    例如：
+    1. 矩阵A为M×N，矩阵B为N×P, 则：
+    gemm(不转置，不转置，M,P,N,Alpha,矩阵A的地址，tdblB的地址，Beta,矩阵C的地址)
+    2. 矩阵A为M×N，矩阵B为P×N, 则：
+    gemm(不转置，转置，M,P,N,Alpha,矩阵A的地址，tdblB的地址，Beta,矩阵C的地址).
+    
+    通过例1和例2看到了吧，转置由什么决定的,由它实际的行与列，与参数中的无关！！！
+   */
 template <typename Dtype>
 void InnerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
+
+  /* 其中: bottom_data为 M_ × K_, 其中M_相当于样本数， K_为输入中的神经元个数。
+           top_data 为 M × N_,        N_为输出中的神经元个数。
+           weight_为K_ × N_(transpose为true)或N_ × K_(transpose为false).
+   */
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype* weight = this->blobs_[0]->cpu_data();
   caffe_cpu_gemm<Dtype>(CblasNoTrans, transpose_ ? CblasNoTrans : CblasTrans,
       M_, N_, K_, (Dtype)1.,
       bottom_data, weight, (Dtype)0., top_data);
+
+  /* 如果使用了偏置参数，则加上相应的值。 */
   if (bias_term_) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.cpu_data(),
@@ -122,10 +141,19 @@ template <typename Dtype>
 void InnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
+
+  /* 计算对权值的导数。当trannspose_为true时，权值矩阵为 K_ × N_;
+                       当transpose_为false时，权值矩阵为N_ × K_;
+     top_diff是一个 M_ × N_的矩阵;
+     bottom_data是一个 M_ × K_ 的矩阵;
+     当transpose_为true时，diff_of_weight矩阵 = bottom_data矩阵的转置 × top_diff矩阵。
+     当transpose_为false时，diff_of_weight矩阵 = top_diff矩阵的转置 × bottom_data的矩阵;
+
+     最后新得到权值的导数是多个单独的样本的求得的结果的和。
+   */
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
-    // Gradient with respect to weight
     if (transpose_) {
       caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans,
           K_, N_, M_,
@@ -138,16 +166,32 @@ void InnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
           (Dtype)1., this->blobs_[0]->mutable_cpu_diff());
     }
   }
+
+  /* 计算偏置的导数, 这里使用了gemv()函数。
+     gemv(矩阵A是否转置，矩阵A的行，矩阵A的列, alpha, 矩阵A的地址，
+          向量B的地址， Beta, 矩阵B的地址)
+     top_diff是一个 M_ × N_的矩阵;
+     bias_multiplier是一个size为M的一维向量.
+     偏转的导数是一个N × 1的矩阵
+   */
   if (bias_term_ && this->param_propagate_down_[1]) {
     const Dtype* top_diff = top[0]->cpu_diff();
-    // Gradient with respect to bias
     caffe_cpu_gemv<Dtype>(CblasTrans, M_, N_, (Dtype)1., top_diff,
         bias_multiplier_.cpu_data(), (Dtype)1.,
         this->blobs_[1]->mutable_cpu_diff());
   }
+
+  /* 梯度继续反向传播，求对输入数据的导数。
+     top_diff是一个 M_ × N_的矩阵;
+    当trannspose_为true时，权值矩阵为 K_ × N_;
+    当transpose_为false时，权值矩阵为N_ × K_;
+    bottom_data是一个 M_ × K_的矩阵
+
+    输入的导数矩阵为：top_diff矩阵 × 权值矩阵的转置(transpose_为true)
+                      top_diff矩阵 × 权值矩阵(transpose_为false)
+   */
   if (propagate_down[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
-    // Gradient with respect to bottom data
     if (transpose_) {
       caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans,
           M_, K_, N_,

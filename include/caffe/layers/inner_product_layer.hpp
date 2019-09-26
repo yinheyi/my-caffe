@@ -56,9 +56,9 @@ class InnerProductLayer : public Layer<Dtype> {
   int K_;    // K_表示输入中有多少个神经节点
   int N_;    // N_表示输出中有多少个神经节点
   bool bias_term_;    // 表示是否使用偏置值。
-  Blob<Dtype> bias_multiplier_;    // 每一个bitch_size的偏置的乘数因子, 它的size()是M_.
-                                   // 意思就是可以控制不同的bitch_size时偏置值的因子大小。
-  bool transpose_;  // 表示权值矩阵是否进行转置
+  Blob<Dtype> bias_multiplier_;    // 每一个训练样本的偏置的乘数因子, 它的size()是M_.
+                                   // 意思就是可以控制不同的样本偏置值的因子大小。
+  bool transpose_;  // 表示权值矩阵是否进行转置, 当为true时，权值矩阵的shape为 K_ × N_, 当为false时， 权值矩阵的shape为 N_ × K_.
 };
 
 }  // namespace caffe
