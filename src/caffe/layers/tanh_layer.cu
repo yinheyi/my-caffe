@@ -1,5 +1,6 @@
 // TanH neuron activation function layer.
 // Adapted from ReLU layer code written by Yangqing Jia
+// 定义了使用gpu计算forward和backward的函数。
 
 #include <vector>
 
@@ -20,7 +21,7 @@ void TanHLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
   const int count = bottom[0]->count();
-  // NOLINT_NEXT_LINE(whitespace/operators)
+  // NOLINT_NEXT_LINE(whitespace/operators)       // <<< >>>是什么东东？？
   TanHForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
       count, bottom_data, top_data);
   CUDA_POST_KERNEL_CHECK;
