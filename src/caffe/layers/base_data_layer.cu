@@ -4,6 +4,7 @@
 
 namespace caffe {
 
+// 实现的功能与Frdard_cpu完全相同
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {

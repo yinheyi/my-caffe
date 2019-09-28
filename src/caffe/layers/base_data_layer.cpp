@@ -20,15 +20,18 @@ BaseDataLayer<Dtype>::BaseDataLayer(const LayerParameter& param)
 template <typename Dtype>
 void BaseDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  // 当top的blobs为一个时，说明它只有训练数据，没有lable.
   if (top.size() == 1) {
     output_labels_ = false;
   } else {
     output_labels_ = true;
   }
+
+ // 根据参数，初始化一个data_transformer的函数,来完成数据的转换。
   data_transformer_.reset(
       new DataTransformer<Dtype>(transform_param_, this->phase_));
   data_transformer_->InitRand();
-  // The subclasses should setup the size of bottom and top
+
   DataLayerSetUp(bottom, top);
 }
 
@@ -49,6 +52,8 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   BaseDataLayer<Dtype>::LayerSetUp(bottom, top);
 
+  // 下面这段注释很重要：为了避免线程中进行内存的申请动作，提前初始化了内存。致于原因,
+  // 这段英文中有说明：
   // Before starting the prefetch thread, we make cpu_data and gpu_data
   // calls so that the prefetch thread does not accidentally make simultaneous
   // cudaMalloc calls when the main thread is running. In some GPUs this
@@ -71,10 +76,12 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
 #endif
   DLOG(INFO) << "Initializing prefetch";
   this->data_transformer_->InitRand();
+  // 开始, 这个具体干了什么事，还没有看相关的代码，暂时搁置吧， 可能初始化线程了吧。
   StartInternalThread();
   DLOG(INFO) << "Prefetch initialized.";
 }
 
+/** 该函数貌似进行了data的prefetch动作。*/
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 #ifndef CPU_ONLY
@@ -85,6 +92,8 @@ void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 #endif
 
   try {
+    /* 该while循环进行了数据的load。从prefetch_free_中获取一个空的batch, 然后进行
+      load_bath, 然后放入到prefetch_full_队列中。*/
     while (!must_stop()) {
       Batch<Dtype>* batch = prefetch_free_.pop();
       load_batch(batch);
@@ -112,15 +121,19 @@ void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+
+   // 把已经使用的batch放到free_队列中，再从full队列中获取一个新的batch.
   if (prefetch_current_) {
     prefetch_free_.push(prefetch_current_);
   }
   prefetch_current_ = prefetch_full_.pop("Waiting for data");
-  // Reshape to loaded data.
+
+  // 装载data数据
   top[0]->ReshapeLike(prefetch_current_->data_);
   top[0]->set_cpu_data(prefetch_current_->data_.mutable_cpu_data());
+
+  // 装载label数据。
   if (this->output_labels_) {
-    // Reshape to loaded labels.
     top[1]->ReshapeLike(prefetch_current_->label_);
     top[1]->set_cpu_data(prefetch_current_->label_.mutable_cpu_data());
   }
