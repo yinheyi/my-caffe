@@ -31,18 +31,19 @@
 namespace gflags = google;
 #endif  // GFLAGS_GFLAGS_H_
 
-// Disable the copy and assignment operator for a class.
+// 禁用类的复制和赋值构造函数的类
 #define DISABLE_COPY_AND_ASSIGN(classname) \
 private:\
   classname(const classname&);\
   classname& operator=(const classname&)
 
-// Instantiate a class with float and double specifications.
+// 使用double和float类型实例化一个类模板
 #define INSTANTIATE_CLASS(classname) \
   char gInstantiationGuard##classname; \
   template class classname<float>; \
   template class classname<double>
 
+// 使用double和float类型实例化gpu的前向传播函数
 #define INSTANTIATE_LAYER_GPU_FORWARD(classname) \
   template void classname<float>::Forward_gpu( \
       const std::vector<Blob<float>*>& bottom, \
@@ -51,6 +52,7 @@ private:\
       const std::vector<Blob<double>*>& bottom, \
       const std::vector<Blob<double>*>& top);
 
+// 使用double和float类型实例化gpu的反向传播函数
 #define INSTANTIATE_LAYER_GPU_BACKWARD(classname) \
   template void classname<float>::Backward_gpu( \
       const std::vector<Blob<float>*>& top, \
@@ -65,8 +67,7 @@ private:\
   INSTANTIATE_LAYER_GPU_FORWARD(classname); \
   INSTANTIATE_LAYER_GPU_BACKWARD(classname)
 
-// A simple macro to mark codes that are not implemented, so that when the code
-// is executed we will see a fatal log.
+// 定义没有实现的宏，实现的功能是：会输出一条fatal的日志。
 #define NOT_IMPLEMENTED LOG(FATAL) << "Not Implemented Yet"
 
 // See PR #1236
@@ -74,8 +75,7 @@ namespace cv { class Mat; }
 
 namespace caffe {
 
-// We will use the boost shared_ptr instead of the new C++11 one mainly
-// because cuda does not work (at least now) well with C++11 features.
+// 使用boost库中的shared_ptr代替c++11中的shared_ptr, 原因是CUDA兼容性的问题.
 using boost::shared_ptr;
 
 // Common functions and classes from std that caffe often uses.
@@ -93,25 +93,24 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
-// A global initialization function that you should call in your main function.
-// Currently it initializes google flags and google logging.
+// 全局的初始化函数，目前该函数会初始化google flags 和 google logging.
 void GlobalInit(int* pargc, char*** pargv);
 
 // A singleton class to hold common caffe stuff, such as the handler that
 // caffe is going to use for cublas, curand, etc.
+/** @brief 下面定义了一个全局的单例类caffe.   */
 class Caffe {
  public:
   ~Caffe();
 
-  // Thread local context for Caffe. Moved to common.cpp instead of
-  // including boost/thread.hpp to avoid a boost/NVCC issues (#1009, #1010)
-  // on OSX. Also fails on Linux with CUDA 7.0.18.
+  /** @brief 获取单例实体对象, 它返回一个引用。 */
   static Caffe& Get();
 
+  // 定义了一个枚举类型
   enum Brew { CPU, GPU };
 
-  // This random number generator facade hides boost and CUDA rng
-  // implementation from one another (for cross-platform compatibility).
+  /**
+    @brief 定义了一个RNG的类，该类对caffe_rng_t进行了封装 */
   class RNG {
    public:
     RNG();
@@ -173,7 +172,6 @@ class Caffe {
   curandGenerator_t curand_generator_;
 #endif
   shared_ptr<RNG> random_generator_;
-
   Brew mode_;
 
   // Parallel training
@@ -182,9 +180,8 @@ class Caffe {
   bool multiprocess_;
 
  private:
-  // The private constructor to avoid duplicate instantiation.
+  // 在单例类中，构造函数都是私有的。
   Caffe();
-
   DISABLE_COPY_AND_ASSIGN(Caffe);
 };
 

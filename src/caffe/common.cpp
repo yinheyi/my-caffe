@@ -9,9 +9,11 @@
 
 namespace caffe {
 
-// Make sure each thread can have different values.
+// 这里，每一个线程都会使用它们自己的thread_instance_变量，确保了线程之间不干扰。
+// 当线程退出时，就像sahred_ptr一样会自动释放掉相应的内存。
 static boost::thread_specific_ptr<Caffe> thread_instance_;
 
+// 获取单例类的实体对象, 第一次调用时会new一个对象。
 Caffe& Caffe::Get() {
   if (!thread_instance_.get()) {
     thread_instance_.reset(new Caffe());
@@ -19,7 +21,10 @@ Caffe& Caffe::Get() {
   return *(thread_instance_.get());
 }
 
-// random seeding
+/**
+  @brief 获取生成随机数的seed. 它首先偿试从系统的熵中获取，如果没有获取到时，则
+  根据相应的算法生成。
+  */
 int64_t cluster_seedgen(void) {
   int64_t s, seed, pid;
   FILE* f = fopen("/dev/urandom", "rb");
@@ -39,7 +44,9 @@ int64_t cluster_seedgen(void) {
   return seed;
 }
 
-
+/**
+  @brief 全局初始化函数， 当前它初始化了google flags 和 google log.
+  */
 void GlobalInit(int* pargc, char*** pargv) {
   // Google flags.
   ::gflags::ParseCommandLineFlags(pargc, pargv, true);
@@ -50,7 +57,6 @@ void GlobalInit(int* pargc, char*** pargv) {
 }
 
 #ifdef CPU_ONLY  // CPU-only Caffe.
-
 Caffe::Caffe()
     : random_generator_(), mode_(Caffe::CPU),
       solver_count_(1), solver_rank_(0), multiprocess_(false) { }
@@ -80,6 +86,7 @@ int Caffe::FindDevice(const int start_id) {
   return -1;
 }
 
+// 又定义了一个Generator的类，怎么一层层的定义个没完没了的呢？
 class Caffe::RNG::Generator {
  public:
   Generator() : rng_(new caffe::rng_t(cluster_seedgen())) {}
