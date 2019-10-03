@@ -260,16 +260,29 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
 template <typename Dtype>
 void Net<Dtype>::FilterNet(const NetParameter& param,
     NetParameter* param_filtered) {
+
+  /* 从源param中获取net_state的值，它指定了该Net具有的state, 如果layer的
+     NetstateRule与net的state能匹配(更标准的应该说net的state满足layer的
+     netstaterule的要求，则该layer就包含在net中).  protobuf 中定义的net_state
+     的结构中包含： phase，level, stage. */
   NetState net_state(param.state());
+
+  /* 先清空目的param中的layer字符串，然后利用下面的循环把把符合要求的layer
+     重新加入到里面去。 */
   param_filtered->CopyFrom(param);
   param_filtered->clear_layer();
   for (int i = 0; i < param.layer_size(); ++i) {
     const LayerParameter& layer_param = param.layer(i);
     const string& layer_name = layer_param.name();
+
+    /* 一个定义好的layer中,要么定义include,要么定义exclude, 别都存在啊,从下面
+       代码中可以看出来，如果都存在时，也只会按include原则来，完全忽略exclude
+       的影响了。*/
     CHECK(layer_param.include_size() == 0 || layer_param.exclude_size() == 0)
           << "Specify either include rules or exclude rules; not both.";
-    // If no include rules are specified, the layer is included by default and
-    // only excluded if it meets one of the exclude rules.
+
+    /* 下面的实现很有技巧性，它的实现决定了当include和exclude同时存在时，只会
+       考虑include字段内的值来决定是否要把当前的layer包含到net中去。 */
     bool layer_included = (layer_param.include_size() == 0);
     for (int j = 0; layer_included && j < layer_param.exclude_size(); ++j) {
       if (StateMeetsRule(net_state, layer_param.exclude(j), layer_name)) {
@@ -290,7 +303,8 @@ void Net<Dtype>::FilterNet(const NetParameter& param,
 template <typename Dtype>
 bool Net<Dtype>::StateMeetsRule(const NetState& state,
     const NetStateRule& rule, const string& layer_name) {
-  // Check whether the rule is broken due to phase.
+
+  // 检测phase是否满足state_rule
   if (rule.has_phase()) {
       if (rule.phase() != state.phase()) {
         LOG_IF(INFO, Caffe::root_solver())
@@ -300,7 +314,7 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
         return false;
       }
   }
-  // Check whether the rule is broken due to min level.
+  // 检测level是否满足state_rule中定义的level的最小值要求。
   if (rule.has_min_level()) {
     if (state.level() < rule.min_level()) {
       LOG_IF(INFO, Caffe::root_solver())
@@ -310,7 +324,7 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
       return false;
     }
   }
-  // Check whether the rule is broken due to max level.
+  // 检测level是否满足state_rule中定义的level的最大值要求。
   if (rule.has_max_level()) {
     if (state.level() > rule.max_level()) {
       LOG_IF(INFO, Caffe::root_solver())
@@ -320,10 +334,10 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
       return false;
     }
   }
-  // Check whether the rule is broken due to stage. The NetState must
-  // contain ALL of the rule's stages to meet it.
+  /* 检测rule中指定的多个stage是否在state中的stage中都存在。如果有一个
+     不存在，都会返回false的. 这代码写的有点意思啊，我发现他喜欢把一部
+     分条件判断的语句加到for循环中。*/
   for (int i = 0; i < rule.stage_size(); ++i) {
-    // Check that the NetState contains the rule's ith stage.
     bool has_stage = false;
     for (int j = 0; !has_stage && j < state.stage_size(); ++j) {
       if (rule.stage(i) == state.stage(j)) { has_stage = true; }
@@ -335,10 +349,10 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
       return false;
     }
   }
-  // Check whether the rule is broken due to not_stage. The NetState must
-  // contain NONE of the rule's not_stages to meet it.
+
+  /* 与上面类似，只不过一个是rule指定了应该包含的stage, 这个是rule中指
+     定了不应该包含的stage */
   for (int i = 0; i < rule.not_stage_size(); ++i) {
-    // Check that the NetState contains the rule's ith not_stage.
     bool has_stage = false;
     for (int j = 0; !has_stage && j < state.stage_size(); ++j) {
       if (rule.not_stage(i) == state.stage(j)) { has_stage = true; }

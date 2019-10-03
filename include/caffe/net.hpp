@@ -216,14 +216,27 @@ class Net {
 
   void set_debug_info(const bool value) { debug_info_ = value; }
 
-  // Helpers for Init.
   /**
-   * @brief Remove layers that the user specified should be excluded given the current
-   *        phase, level, and stage.
-   */
-  static void FilterNet(const NetParameter& param,
-      NetParameter* param_filtered);
-  /// @brief return whether NetState state meets NetStateRule rule
+    @brief 功能描述：从函数名中就可以看出来，它的作用就是过滤掉一些不不符合要求
+    layer.
+    @param [in]  param          net的参数,这是最初的没有过滤之前的net参数。
+    @param [out] param_filtered 过滤之后的net参数。
+
+    具体来说，每一个net中包含了一个net_state的参数,里面指定了该net的phase, level 
+    和stage, 每一个layer参数中包含了一个net_state_rule, 里面指定了phase/level/stage
+    的值或范围，如果net中的值满足net_state_rule中的值，则该layer就会包含到net中。其
+    实这不部分的工作是在 StateMeetsRule函数内完成的。
+    */
+  static void FilterNet(const NetParameter& param, NetParameter* param_filtered);
+
+  /**
+    @brief 根据net_state和net_state_rule来决定一个layer是否符合要求。该函数会在
+    FilterNet函数中调用。
+    @param [in] state 该参数对应net中的net_state,里面包含了phase/level/stage的值。
+    @param [in] rule  该参数对应了layer中的net_state_rule的值,里面包含了pahse/level/
+                      stage的的值或范围。
+    @param [in] layer_name 一个layer的名字，该参数会在打印日志的时候使用。
+    */
   static bool StateMeetsRule(const NetState& state, const NetStateRule& rule,
       const string& layer_name);
 
