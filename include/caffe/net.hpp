@@ -28,20 +28,15 @@ class Net {
       const int level = 0, const vector<string>* stages = NULL);
   virtual ~Net() {}
 
-  /// @brief Initialize a network with a NetParameter.
+  /** @brief 使用网格参数初始化Net. 这里面干了好多事情。 */
   void Init(const NetParameter& param);
 
   /**
-   * @brief Run Forward and return the result.
-   *
-   */
+    @brief 网络的正向传播函数，它调用ForwardFromTo()函数来完成实际的工作。
+    @param [out] loss 它是一个指针，用于传出计算到的loss值。
+    @return 返回是的输出的blobs.
+    */
   const vector<Blob<Dtype>*>& Forward(Dtype* loss = NULL);
-  /// @brief DEPRECATED; use Forward() instead.
-  const vector<Blob<Dtype>*>& ForwardPrefilled(Dtype* loss = NULL) {
-    LOG_EVERY_N(WARNING, 1000) << "DEPRECATED: ForwardPrefilled() "
-        << "will be removed in a future version. Use Forward().";
-    return Forward(loss);
-  }
 
   /**
    * The From and To variants of Forward and Backward operate on the
@@ -54,28 +49,18 @@ class Net {
   Dtype ForwardFromTo(int start, int end);
   Dtype ForwardFrom(int start);
   Dtype ForwardTo(int end);
-  /// @brief DEPRECATED; set input blobs then use Forward() instead.
-  const vector<Blob<Dtype>*>& Forward(const vector<Blob<Dtype>* > & bottom,
-      Dtype* loss = NULL);
 
-  /**
-   * @brief Zeroes out the diffs of all net parameters.
-   *        Should be run before Backward.
-   */
+  /** @brief 在网格反向传播之前，把所有权值的梯度都置为0. */
   void ClearParamDiffs();
 
-  /**
-   * The network backward should take no input and output, since it solely
-   * computes the gradient w.r.t the parameters, and the data has already been
-   * provided during the forward pass.
-   */
+  /** @brief 进行网格的反向传播，计算相应的权值梯度。 */
   void Backward();
   void BackwardFromTo(int start, int end);
   void BackwardFrom(int start);
   void BackwardTo(int end);
 
   /**
-   * @brief Reshape all layers from bottom to top.
+   * @brief 遍历所有的layer进行reshape操作。
    *
    * This is useful to propagate changes to layer sizes without running
    * a forward pass, e.g. to compute output feature size.
@@ -92,7 +77,8 @@ class Net {
   /// @brief Updates the network weights based on the diff values computed.
   void Update();
   /**
-   * @brief Shares weight data of owner blobs with shared blobs.
+   * @brief Shares weight data of owner blobs with shared blobs. 它需要使用到
+   * 成员变量 params_和param_owners_.
    *
    * Note: this is called by Net::Init, and thus should normally not be
    * called manually.
@@ -104,6 +90,7 @@ class Net {
    *        additional memory) the pre-trained layers from another Net.
    */
   void ShareTrainedLayersWith(const Net* other);
+
   // For an already initialized net, CopyTrainedLayersFrom() copies the already
   // trained layers from another net parameter instance.
   /**
@@ -336,6 +323,7 @@ class Net {
   /// the learning rate multipliers for learnable_params_
   vector<float> params_lr_;
   vector<bool> has_params_lr_;
+
   /// the weight decay multipliers for learnable_params_
   vector<float> params_weight_decay_;
   vector<bool> has_params_decay_;

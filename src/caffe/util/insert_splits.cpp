@@ -20,9 +20,12 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
   map<pair<int, int>, int> top_idx_to_bottom_split_idx;
   map<int, string> layer_idx_to_layer_name;
   for (int i = 0; i < param.layer_size(); ++i) {
+
     const LayerParameter& layer_param = param.layer(i);
     layer_idx_to_layer_name[i] = layer_param.name();
+
     for (int j = 0; j < layer_param.bottom_size(); ++j) {
+
       const string& blob_name = layer_param.bottom(j);
       if (blob_name_to_last_top_idx.find(blob_name) ==
           blob_name_to_last_top_idx.end()) {
@@ -34,6 +37,7 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
       bottom_idx_to_source_top_idx[bottom_idx] = top_idx;
       ++top_idx_to_bottom_count[top_idx];
     }
+
     for (int j = 0; j < layer_param.top_size(); ++j) {
       const string& blob_name = layer_param.top(j);
       blob_name_to_last_top_idx[blob_name] = make_pair(i, j);

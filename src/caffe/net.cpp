@@ -44,18 +44,20 @@ Net<Dtype>::Net(const string& param_file, Phase phase,
 
 template <typename Dtype>
 void Net<Dtype>::Init(const NetParameter& in_param) {
-  // Set phase from the state.
+  // 设置net的phase---- train/test.
   phase_ = in_param.state().phase();
-  // Filter layers based on their include/exclude rules and
-  // the current NetState.
+
+  // 基于state_rule 过滤掉一些不符合要求的layer.
   NetParameter filtered_param;
   FilterNet(in_param, &filtered_param);
   LOG_IF(INFO, Caffe::root_solver())
       << "Initializing net from parameters: " << std::endl
       << filtered_param.DebugString();
+
   // Create a copy of filtered_param with splits added where necessary.
   NetParameter param;
   InsertSplits(filtered_param, &param);
+
   // Basically, build all the layers and set up their connections.
   name_ = param.name();
   map<string, int> blob_name_to_idx;
@@ -69,11 +71,12 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   top_id_vecs_.resize(param.layer_size());
   bottom_need_backward_.resize(param.layer_size());
   for (int layer_id = 0; layer_id < param.layer_size(); ++layer_id) {
-    // Inherit phase from net if unset.
+    // 当layer的phase不存在时，使用net的phase来代替。
     if (!param.layer(layer_id).has_phase()) {
       param.mutable_layer(layer_id)->set_phase(phase_);
     }
-    // Setup layer.
+
+    // 创建一个layer,并且把相应的指针和名字存放到成员变量内。
     const LayerParameter& layer_param = param.layer(layer_id);
     if (layer_param.propagate_down_size() > 0) {
       CHECK_EQ(layer_param.propagate_down_size(),
@@ -85,8 +88,8 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     layer_names_.push_back(layer_param.name());
     LOG_IF(INFO, Caffe::root_solver())
         << "Creating Layer " << layer_param.name();
-    bool need_backward = false;
 
+    bool need_backward = false;
     // Figure out this layer's input and output
     for (int bottom_id = 0; bottom_id < layer_param.bottom_size();
          ++bottom_id) {
@@ -95,6 +98,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       // If a blob needs backward, this layer should provide it.
       need_backward |= blob_need_backward_[blob_id];
     }
+
     int num_top = layer_param.top_size();
     for (int top_id = 0; top_id < num_top; ++top_id) {
       AppendTop(param, layer_id, top_id, &available_blobs, &blob_name_to_idx);
@@ -119,6 +123,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
         AppendTop(param, layer_id, num_top, NULL, NULL);
       }
     }
+
     // After this layer is connected, set it up.
     layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id]);
     LOG_IF(INFO, Caffe::root_solver())
@@ -138,6 +143,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     }
     LOG_IF(INFO, Caffe::root_solver())
         << "Memory required for data: " << memory_used_ * sizeof(Dtype);
+
     const int param_size = layer_param.param_size();
     const int num_param_blobs = layers_[layer_id]->blobs().size();
     CHECK_LE(param_size, num_param_blobs)
@@ -151,6 +157,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       layers_[layer_id]->set_param_propagate_down(param_id,
                                                   param_need_backward);
     }
+
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
       AppendParam(param, layer_id, param_id);
     }
@@ -162,6 +169,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       }
     }
   }
+
   // Go through the net backwards to determine which blobs contribute to the
   // loss.  We can skip backward computation for blobs that don't contribute
   // to the loss.
@@ -185,6 +193,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       if (layer_contributes_loss && !layer_skip_propagate_down)
         break;
     }
+
     // If this layer can skip backward computation, also all his bottom blobs
     // don't need backpropagation
     if (layer_need_backward_[layer_id] && layer_skip_propagate_down) {
@@ -194,6 +203,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
         bottom_need_backward_[layer_id][bottom_id] = false;
       }
     }
+
     if (!layer_contributes_loss) { layer_need_backward_[layer_id] = false; }
     if (Caffe::root_solver()) {
       if (layer_need_backward_[layer_id]) {
@@ -219,6 +229,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       }
     }
   }
+
   // Handle force_backward if needed.
   if (param.force_backward()) {
     for (int layer_id = 0; layer_id < layers_.size(); ++layer_id) {
@@ -238,6 +249,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       }
     }
   }
+
   // In the end, all remaining blobs are considered output blobs.
   for (set<string>::iterator it = available_blobs.begin();
       it != available_blobs.end(); ++it) {
@@ -447,6 +459,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     param_display_name << param_id;
     param_display_names_.push_back(param_display_name.str());
   }
+
   const int net_param_id = params_.size();
   params_.push_back(layers_[layer_id]->blobs()[param_id]);
   param_id_vecs_[layer_id].push_back(net_param_id);
@@ -534,12 +547,16 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
   CHECK_LT(end, layers_.size());
   Dtype loss = 0;
   for (int i = start; i <= end; ++i) {
+
+    // 前向传播之前可能需要执行的动作
     for (int c = 0; c < before_forward_.size(); ++c) {
       before_forward_[c]->run(i);
     }
     Dtype layer_loss = layers_[i]->Forward(bottom_vecs_[i], top_vecs_[i]);
     loss += layer_loss;
     if (debug_info_) { ForwardDebugInfo(i); }
+
+    // 前向传播之后可能需要执行的动作
     for (int c = 0; c < after_forward_.size(); ++c) {
       after_forward_[c]->run(i);
     }
@@ -568,34 +585,56 @@ const vector<Blob<Dtype>*>& Net<Dtype>::Forward(Dtype* loss) {
 }
 
 template <typename Dtype>
-const vector<Blob<Dtype>*>& Net<Dtype>::Forward(
-    const vector<Blob<Dtype>*> & bottom, Dtype* loss) {
-  LOG_EVERY_N(WARNING, 1000) << "DEPRECATED: Forward(bottom, loss) "
-      << "will be removed in a future version. Use Forward(loss).";
-  // Copy bottom to net bottoms
-  for (int i = 0; i < bottom.size(); ++i) {
-    net_input_blobs_[i]->CopyFrom(*bottom[i]);
+void Net<Dtype>::Backward() {
+  BackwardFromTo(layers_.size() - 1, 0);
+  if (debug_info_) {
+    Dtype asum_data = 0, asum_diff = 0, sumsq_data = 0, sumsq_diff = 0;
+    for (int i = 0; i < learnable_params_.size(); ++i) {
+      asum_data += learnable_params_[i]->asum_data();
+      asum_diff += learnable_params_[i]->asum_diff();
+      sumsq_data += learnable_params_[i]->sumsq_data();
+      sumsq_diff += learnable_params_[i]->sumsq_diff();
+    }
+    const Dtype l2norm_data = std::sqrt(sumsq_data);
+    const Dtype l2norm_diff = std::sqrt(sumsq_diff);
+    LOG(ERROR) << "    [Backward] All net params (data, diff): "
+               << "L1 norm = (" << asum_data << ", " << asum_diff << "); "
+               << "L2 norm = (" << l2norm_data << ", " << l2norm_diff << ")";
   }
-  return Forward(loss);
 }
 
 template <typename Dtype>
-void Net<Dtype>::BackwardFromTo(int start, int end) {
-  CHECK_GE(end, 0);
-  CHECK_LT(start, layers_.size());
-  for (int i = start; i >= end; --i) {
-    for (int c = 0; c < before_backward_.size(); ++c) {
-      before_backward_[c]->run(i);
+void Net<Dtype>::BackwardFromTo(int start, int end)
+{
+     CHECK_GE(end, 0);
+     CHECK_LT(start, layers_.size());
+     for (int i = start; i >= end; --i)
+     {
+         for (int c = 0; c < before_backward_.size(); ++c)
+             before_backward_[c]->run(i);
+
+         if (layer_need_backward_[i])
+         {
+             layers_[i]->Backward( top_vecs_[i], bottom_need_backward_[i], bottom_vecs_[i]);
+             if (debug_info_)
+                 BackwardDebugInfo(i);
+         }
+
+         for (int c = 0; c < after_backward_.size(); ++c)
+            after_backward_[c]->run(i);
     }
-    if (layer_need_backward_[i]) {
-      layers_[i]->Backward(
-          top_vecs_[i], bottom_need_backward_[i], bottom_vecs_[i]);
-      if (debug_info_) { BackwardDebugInfo(i); }
-    }
-    for (int c = 0; c < after_backward_.size(); ++c) {
-      after_backward_[c]->run(i);
-    }
-  }
+}
+
+template <typename Dtype>
+void Net<Dtype>::BackwardFrom(int start)
+{
+    BackwardFromTo(start, 0);
+}
+
+template <typename Dtype>
+void Net<Dtype>::BackwardTo(int end)
+{
+    BackwardFromTo(layers_.size() - 1, end);
 }
 
 template <typename Dtype>
@@ -706,35 +745,6 @@ void Net<Dtype>::ShareTrainedLayersWith(const Net* other) {
           << target_blobs[j]->shape_string();
       target_blobs[j]->ShareData(*source_blob);
     }
-  }
-}
-
-template <typename Dtype>
-void Net<Dtype>::BackwardFrom(int start) {
-  BackwardFromTo(start, 0);
-}
-
-template <typename Dtype>
-void Net<Dtype>::BackwardTo(int end) {
-  BackwardFromTo(layers_.size() - 1, end);
-}
-
-template <typename Dtype>
-void Net<Dtype>::Backward() {
-  BackwardFromTo(layers_.size() - 1, 0);
-  if (debug_info_) {
-    Dtype asum_data = 0, asum_diff = 0, sumsq_data = 0, sumsq_diff = 0;
-    for (int i = 0; i < learnable_params_.size(); ++i) {
-      asum_data += learnable_params_[i]->asum_data();
-      asum_diff += learnable_params_[i]->asum_diff();
-      sumsq_data += learnable_params_[i]->sumsq_data();
-      sumsq_diff += learnable_params_[i]->sumsq_diff();
-    }
-    const Dtype l2norm_data = std::sqrt(sumsq_data);
-    const Dtype l2norm_diff = std::sqrt(sumsq_diff);
-    LOG(ERROR) << "    [Backward] All net params (data, diff): "
-               << "L1 norm = (" << asum_data << ", " << asum_diff << "); "
-               << "L2 norm = (" << l2norm_data << ", " << l2norm_diff << ")";
   }
 }
 
@@ -937,6 +947,7 @@ void Net<Dtype>::Update() {
   }
 }
 
+// 该函数把权值梯度都置为0.
 template <typename Dtype>
 void Net<Dtype>::ClearParamDiffs() {
   for (int i = 0; i < learnable_params_.size(); ++i) {
