@@ -374,6 +374,7 @@ void Solver<Dtype>::Test(const int test_net_id) {
     if (param_.test_compute_loss()) {
       loss += iter_loss;
     }
+
     if (i == 0) {
       for (int j = 0; j < result.size(); ++j) {
         const Dtype* result_vec = result[j]->cpu_data();
@@ -392,6 +393,7 @@ void Solver<Dtype>::Test(const int test_net_id) {
       }
     }
   }
+
   if (requested_early_exit_) {
     LOG(INFO)     << "Test interrupted.";
     return;

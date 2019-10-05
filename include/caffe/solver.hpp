@@ -127,7 +127,7 @@ class Solver {
   bool requested_early_exit_;
 
   // Timing information, handy to tune e.g. nbr of GPUs
-  Timer iteration_timer_;
+  Timer iteretion_timer_;
   float iterations_last_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
