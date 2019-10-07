@@ -3,8 +3,8 @@
 namespace bp = boost::python;
 #endif
 
-#include <gflags/gflags.h>
-#include <glog/logging.h>
+#include <gflags/gflags.h>    // 用于解析命令行参数的
+#include <glog/logging.h>     // 用于输出日志信息的库
 
 #include <cstring>
 #include <map>
@@ -26,6 +26,11 @@ using caffe::Timer;
 using caffe::vector;
 using std::ostringstream;
 
+/* 下面定义了一个命令行的参数,以及它们对应的默认值，以及解释。详细
+   去看一个gflag库的官方文档就知道啦。 
+   暂时还没有分清楚snapshot和weights文件的区别，snapshot中也应该保存了
+   weights参数啊。无论接着训练还是调优都需要这个网格权值参数的。
+ */
 DEFINE_string(gpu, "",
     "Optional; run in GPU mode on given device IDs separated by ','."
     "Use '-gpu all' to run on all available GPUs. The effective training "
@@ -55,11 +60,15 @@ DEFINE_string(sighup_effect, "snapshot",
              "Optional; action to take when a SIGHUP signal is received: "
              "snapshot, stop or none.");
 
-// A simple registry for caffe commands.
-typedef int (*BrewFunction)();
-typedef std::map<caffe::string, BrewFunction> BrewMap;
-BrewMap g_brew_map;
 
+typedef int (*BrewFunction)();    // 定义了一个函数指针.
+typedef std::map<caffe::string, BrewFunction> BrewMap;
+BrewMap g_brew_map;              // 定义了一个全局的map,里面存放<函数名, 函数指针>映射。
+
+/**
+  @brief 该宏作用是在未命名的命名空间中定义了一个类并实例化一个该类的对象，该类没有
+  任何成员变量，仅仅在析构函数 中把一个函数名与函数指针存放到g_brew_mmap中去。
+  */
 #define RegisterBrewFunction(func) \
 namespace { \
 class __Registerer_##func { \
@@ -85,7 +94,10 @@ static BrewFunction GetBrewFunction(const caffe::string& name) {
   }
 }
 
-// Parse GPU ids or use all available devices
+/**
+  @brief 功能描述: 解析FLAGS_gpu 参数, 输出对应的gpu ID. 
+  @param [out] gpus 这是一个vector, 里面存放要使用的gpu的 ID.
+  */
 static void get_gpus(vector<int>* gpus) {
   if (FLAGS_gpu == "all") {
     int count = 0;
@@ -108,7 +120,10 @@ static void get_gpus(vector<int>* gpus) {
   }
 }
 
-// Parse phase from flags
+/**
+  @brief 功能描述：该函数处理FLAGS_phase变量，返回对应的caffe::Phase类型的枚举值。
+  @param [in] default_value 默认返回的的Phase值。
+  */
 caffe::Phase get_phase_from_flags(caffe::Phase default_value) {
   if (FLAGS_phase == "")
     return default_value;
@@ -120,7 +135,11 @@ caffe::Phase get_phase_from_flags(caffe::Phase default_value) {
   return caffe::TRAIN;  // Avoid warning
 }
 
-// Parse stages from flags
+/**
+  @brief 功能描述：处理字符串变量FLAGS_stage，它里面字符使用 comma 分隔开了，
+  返回值是的多个string组成的vector. 
+ */
+  @return 
 vector<string> get_stages_from_flags() {
   vector<string> stages;
   boost::split(stages, FLAGS_stage, boost::is_any_of(","));
@@ -133,7 +152,7 @@ vector<string> get_stages_from_flags() {
 // To add a command, define a function "int command()" and register it with
 // RegisterBrewFunction(action);
 
-// Device Query: show diagnostic information for a GPU device.
+/** @brief 功能描述：输出你指定的要使用的gpu的的诊断信息。 */
 int device_query() {
   LOG(INFO) << "Querying GPUs " << FLAGS_gpu;
   vector<int> gpus;
@@ -146,8 +165,11 @@ int device_query() {
 }
 RegisterBrewFunction(device_query);
 
-// Translate the signal effect the user specified on the command-line to the
-// corresponding enumeration.
+/**
+  @brief 功能描述：把gflags解析出来的参数值(该值指定了收到SIGINT信号或SIGHUP信
+  号时要执行的动作)转换为caffe内部定义好的枚举类型变量。
+  @return 返回值的类型为caffe::SolverAction类型，它是一个枚举类型：STOP/SNAPSHOT/NONE;
+  */
 caffe::SolverAction::Enum GetRequestedAction(
     const std::string& flag_value) {
   if (flag_value == "stop") {
@@ -162,9 +184,12 @@ caffe::SolverAction::Enum GetRequestedAction(
   LOG(FATAL) << "Invalid signal effect \""<< flag_value << "\" was specified";
 }
 
-// Train / Finetune a model.
+/** @brief 功能描述：网络训练的主功能函数。 */
 int train() {
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
+  /* snapshot和weithts文件可以都不指定，但是不能全部都指定了。具体原因暂时还不
+     知道，随着看代码的深入，知道了snapshot和weights中存在的是什么以及如何恢复
+     之后就应该知道原因了。*/
   CHECK(!FLAGS_snapshot.size() || !FLAGS_weights.size())
       << "Give a snapshot to resume training or weights to finetune "
       "but not both.";
