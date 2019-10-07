@@ -69,17 +69,18 @@ BrewMap g_brew_map;              // 定义了一个全局的map,里面存放<函
   @brief 该宏作用是在未命名的命名空间中定义了一个类并实例化一个该类的对象，该类没有
   任何成员变量，仅仅在析构函数 中把一个函数名与函数指针存放到g_brew_mmap中去。
   */
-#define RegisterBrewFunction(func) \
-namespace { \
-class __Registerer_##func { \
- public: /* NOLINT */ \
-  __Registerer_##func() { \
-    g_brew_map[#func] = &func; \
-  } \
-}; \
-__Registerer_##func g_registerer_##func; \
+#define RegisterBrewFunction(func)           \
+namespace {                                  \
+class __Registerer_##func {                  \
+ public: /* NOLINT */                        \
+  __Registerer_##func() {                    \
+    g_brew_map[#func] = &func;               \
+  }                                          \
+};                                           \
+__Registerer_##func g_registerer_##func;     \
 }
 
+/** @brief 功能描述：获取给定函数名的函数指针。 */
 static BrewFunction GetBrewFunction(const caffe::string& name) {
   if (g_brew_map.count(name)) {
     return g_brew_map[name];
@@ -187,24 +188,23 @@ caffe::SolverAction::Enum GetRequestedAction(
 /** @brief 功能描述：网络训练的主功能函数。 */
 int train() {
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
-  /* snapshot和weithts文件可以都不指定，但是不能全部都指定了。具体原因暂时还不
-     知道，随着看代码的深入，知道了snapshot和weights中存在的是什么以及如何恢复
-     之后就应该知道原因了。*/
   CHECK(!FLAGS_snapshot.size() || !FLAGS_weights.size())
       << "Give a snapshot to resume training or weights to finetune "
       "but not both.";
   vector<string> stages = get_stages_from_flags();
 
+  /* 从用户自己定义的solver.prototxt文件中解析出solver_param参数。 */
   caffe::SolverParameter solver_param;
   caffe::ReadSolverParamsFromTextFileOrDie(FLAGS_solver, &solver_param);
 
+  /* 设置从命令行参数中指定的train_level 和 train_stages到solver_param中。*/
   solver_param.mutable_train_state()->set_level(FLAGS_level);
   for (int i = 0; i < stages.size(); i++) {
     solver_param.mutable_train_state()->add_stage(stages[i]);
   }
 
-  // If the gpus flag is not provided, allow the mode and device to be set
-  // in the solver prototxt.
+  /* 如果没有在命令行参数中指定gpu, 那么用户可能在sorlver.prototxt文件中指定了，
+     那就从文件中指定的gpu来构造FLAGS_gpu参数的值。 */
   if (FLAGS_gpu.size() == 0
       && solver_param.has_solver_mode()
       && solver_param.solver_mode() == caffe::SolverParameter_SolverMode_GPU) {
@@ -216,6 +216,8 @@ int train() {
       }
   }
 
+  /* 获取要使用的gpu的设备号，如果不存在，则使用cpu模式;如果存在，则打印相关的
+     gpu设备的信息。 */
   vector<int> gpus;
   get_gpus(&gpus);
   if (gpus.size() == 0) {
@@ -234,16 +236,21 @@ int train() {
       LOG(INFO) << "GPU " << gpus[i] << ": " << device_prop.name;
     }
 #endif
+
+    /* 这几行代码干了什么事情呢？有点疑惑。*/
     solver_param.set_device_id(gpus[0]);
     Caffe::SetDevice(gpus[0]);
     Caffe::set_mode(Caffe::GPU);
     Caffe::set_solver_count(gpus.size());
   }
 
+  /* 设置收到SIGINT和SIGHUP信号时，应该执行的动作。*/
   caffe::SignalHandler signal_handler(
         GetRequestedAction(FLAGS_sigint_effect),
         GetRequestedAction(FLAGS_sighup_effect));
 
+  /* 当使用snapshot时，要清空solver_param中存放的weights中caffemodel文件路径名。
+     如果是finetune时，使用命令行参数指定的的caffemodel文件的路径 */
   if (FLAGS_snapshot.size()) {
     solver_param.clear_weights();
   } else if (FLAGS_weights.size()) {
@@ -262,6 +269,8 @@ int train() {
   }
 
   LOG(INFO) << "Starting Optimization";
+
+  // 当使用多个gpu训练网格时，一定要使用NCCL库，它负责多gpu之间的协同。
   if (gpus.size() > 1) {
 #ifdef USE_NCCL
     caffe::NCCL<float> nccl(solver);
@@ -278,7 +287,7 @@ int train() {
 RegisterBrewFunction(train);
 
 
-// Test: score a model.
+/** @brief 功能描述：网络测试的主功能函数。 */
 int test() {
   CHECK_GT(FLAGS_model.size(), 0) << "Need a model definition to score.";
   CHECK_GT(FLAGS_weights.size(), 0) << "Need model weights to score.";
@@ -308,6 +317,8 @@ int test() {
   vector<int> test_score_output_id;
   vector<float> test_score;
   float loss = 0;
+  /* 下面的for循环在计算test_score和loss, test_score的size是j * k, 它的意义是什么?
+     想要知道答案还需要去了解net的forward的输出是什么呢? */
   for (int i = 0; i < FLAGS_iterations; ++i) {
     float iter_loss;
     const vector<Blob<float>*>& result =
@@ -394,10 +405,10 @@ int time() {
   Timer forward_timer;
   Timer backward_timer;
   Timer timer;
-  std::vector<double> forward_time_per_layer(layers.size(), 0.0);
-  std::vector<double> backward_time_per_layer(layers.size(), 0.0);
-  double forward_time = 0.0;
-  double backward_time = 0.0;
+  std::vector<double> forward_time_per_layer(layers.size(), 0.0);    // 记录每一层layer的前向传播的累加时间(iteration次)。
+  std::vector<double> backward_time_per_layer(layers.size(), 0.0);   // 记录每一层layer的反向传播的累加时间(iteration次)。
+  double forward_time = 0.0;    // 记录net进行iterations次前向传播的累加时间。
+  double backward_time = 0.0;   // 记录net进行iterations次的反向传播累加的时间。
   for (int j = 0; j < FLAGS_iterations; ++j) {
     Timer iter_timer;
     iter_timer.Start();
