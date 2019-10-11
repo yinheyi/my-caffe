@@ -23,6 +23,7 @@ Timer::~Timer() {
   }
 }
 
+// 计时开始函数。
 void Timer::Start() {
   if (!running()) {
     if (Caffe::mode() == Caffe::GPU) {
@@ -32,6 +33,7 @@ void Timer::Start() {
       NO_GPU;
 #endif
     } else {
+      // 这里调用boost库中的函数来获取了计算机当前的本地时间(以毫秒的形式)
       start_cpu_ = boost::posix_time::microsec_clock::local_time();
     }
     running_ = true;
@@ -39,6 +41,7 @@ void Timer::Start() {
   }
 }
 
+// 计时结束函数。
 void Timer::Stop() {
   if (running()) {
     if (Caffe::mode() == Caffe::GPU) {
@@ -48,21 +51,24 @@ void Timer::Stop() {
       NO_GPU;
 #endif
     } else {
+      // 这里调用boost库中的函数来获取了计算机当前的本地时间(以毫秒的形式)
       stop_cpu_ = boost::posix_time::microsec_clock::local_time();
     }
     running_ = false;
   }
 }
 
-
 float Timer::MicroSeconds() {
   if (!has_run_at_least_once()) {
     LOG(WARNING) << "Timer has never been run before reading time.";
     return 0;
   }
+
+  // 如果计时器还没有停止，就会先停止，再求值。
   if (running()) {
     Stop();
   }
+
   if (Caffe::mode() == Caffe::GPU) {
 #ifndef CPU_ONLY
     CUDA_CHECK(cudaEventSynchronize(stop_gpu_));
@@ -74,7 +80,8 @@ float Timer::MicroSeconds() {
       NO_GPU;
 #endif
   } else {
-    elapsed_microseconds_ = (stop_cpu_ - start_cpu_).total_microseconds();
+    // 停止时间对象 - 开始时间对象，把微秒的差值存放到成员变量内。
+    elapsed_microseconds_ = (stop_cpu_ - start_cpu_).total_microseconds(); 
   }
   return elapsed_microseconds_;
 }
@@ -84,6 +91,8 @@ float Timer::MilliSeconds() {
     LOG(WARNING) << "Timer has never been run before reading time.";
     return 0;
   }
+
+  // 如果计时器还没有停止，就会先停止，再求值。
   if (running()) {
     Stop();
   }
@@ -96,6 +105,7 @@ float Timer::MilliSeconds() {
       NO_GPU;
 #endif
   } else {
+    // 停止时间对象 - 开始时间对象，把毫秒的差值存放到成员变量内。
     elapsed_milliseconds_ = (stop_cpu_ - start_cpu_).total_milliseconds();
   }
   return elapsed_milliseconds_;
@@ -119,6 +129,7 @@ void Timer::Init() {
   }
 }
 
+/* CPU_Timer类相关的成员函数 */
 CPUTimer::CPUTimer() {
   this->initted_ = true;
   this->running_ = false;

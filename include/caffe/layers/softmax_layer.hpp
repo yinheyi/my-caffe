@@ -41,7 +41,7 @@ class SoftmaxLayer : public Layer<Dtype> {
   int softmax_axis_;     // 它值表示在第几维度进行softmax操作，例如一个shape为[32,100, 5, 5]，而softmax_axis_为1,则表示在100的那个维度进行softmax,
                          // 相当于共有100类别，此时out_num_的值为32, inner_num_的值为25.
 
-  // 定义这个一维向量(它的大小为shape[softmax_axis_]），目的是为了利用矩阵乘法求累加和,在forward和backward中会使用到。
+  // 定义这个一维向量(它的大小为1 * shape[softmax_axis_]），目的是为了利用矩阵乘法求累加和,在forward和backward中会使用到。
   Blob<Dtype> sum_multiplier_;
 
   /// scale is an intermediate Blob to hold temporary results.
