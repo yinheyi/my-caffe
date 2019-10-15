@@ -25,12 +25,15 @@ void InternalThread::StartInternalThread() {
 #ifndef CPU_ONLY
   CUDA_CHECK(cudaGetDevice(&device));
 #endif
+
+  // 这里拿到当前线程中的Caffe类对象的成员变量的值, 用于初始化后面新创建的新线程中的值。
   Caffe::Brew mode = Caffe::mode();
   int rand_seed = caffe_rng_rand();
   int solver_count = Caffe::solver_count();
   int solver_rank = Caffe::solver_rank();
   bool multiprocess = Caffe::multiprocess();
 
+  // 创建新的线程，并执行私有的成员函数entry().
   try {
     thread_.reset(new boost::thread(&InternalThread::entry, this, device, mode,
           rand_seed, solver_count, solver_rank, multiprocess));
@@ -44,15 +47,19 @@ void InternalThread::entry(int device, Caffe::Brew mode, int rand_seed,
 #ifndef CPU_ONLY
   CUDA_CHECK(cudaSetDevice(device));
 #endif
+
+  // 初始化新线程中单例类对象中的相关值。
   Caffe::set_mode(mode);
   Caffe::set_random_seed(rand_seed);
   Caffe::set_solver_count(solver_count);
   Caffe::set_solver_rank(solver_rank);
   Caffe::set_multiprocess(multiprocess);
 
+  // 执行真正的动作函数。
   InternalThreadEntry();
 }
 
+// 给子线程发送中断，并等待子线程退出，然后返回。
 void InternalThread::StopInternalThread() {
   if (is_started()) {
     thread_->interrupt();

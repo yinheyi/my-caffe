@@ -11,31 +11,29 @@ namespace boost { class thread; }
 
 namespace caffe {
 
-/**
- * Virtual class encapsulate boost::thread for use in base class
- * The child class will acquire the ability to run a single thread,
- * by reimplementing the virtual function InternalThreadEntry.
- */
+ /**
+   @brief 该类就是对boost库内的thread的封装，这样一来，该类的子类就可以
+   生成一个线程来执行定义好的函数(InternalThreadEntry). 这样很方便的。
+   */
 class InternalThread {
  public:
   InternalThread() : thread_() {}
   virtual ~InternalThread();
 
   /**
-   * Caffe's thread local state will be initialized using the current
-   * thread values, e.g. device id, solver index etc. The random seed
-   * is initialized using caffe_rng_rand.
+    @brief 线程的开始函数.  在caffe中生成的每一个线程都有一个独立的Caffe对象类的实
+    例(见common.h/common.cpp文件).  新创建的Caffe对象的成员变量是使用当前线程中值来
+    初始化的.
    */
   void StartInternalThread();
 
-  /** Will not return until the internal thread has exited. */
+  /** @brief 中断子线程，并等待子线程结束，然后才返回。 */
   void StopInternalThread();
 
   bool is_started() const;
 
  protected:
-  /* Implement this method in your subclass
-      with the code you want your thread to run. */
+  /** @brief 子类中实现该函数，新创建的线程执行该函数的。 */
   virtual void InternalThreadEntry() {}
 
   /* Should be tested when running loops to exit when requested. */
