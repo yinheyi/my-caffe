@@ -506,3 +506,4 @@ void Solver<Dtype>::UpdateSmoothedLoss(Dtype loss, int start_iter,
 INSTANTIATE_CLASS(Solver);
 
 }  // namespace caffe
+// 01490-54847-71662
