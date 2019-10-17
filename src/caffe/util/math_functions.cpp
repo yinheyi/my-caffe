@@ -1,3 +1,11 @@
+/** 
+  @file math_functions.cpp
+
+   本文件中的很多cblas函数的接口说明都可以参考intel的mkl库的说明文档，虽然可能不使用mkl库，
+   而是使用开源的blas库，但是函数的接口是相同的，并且mkl的文档很清淅明白。
+   https://software.intel.com/en-us/mkl-developer-reference-c-blas-routines
+ */
+
 #include <boost/math/special_functions/next.hpp>
 #include <boost/random.hpp>
 
@@ -9,6 +17,10 @@
 
 namespace caffe {
 
+/** 
+  使用float类型偏特化一个函数模板，实现float类型的矩阵相乘。从实现中可以看出它
+  是对BLAS库的封装调用，简化了参数的个数。
+  */
 template<>
 void caffe_cpu_gemm<float>(const CBLAS_TRANSPOSE TransA,
     const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
@@ -20,6 +32,10 @@ void caffe_cpu_gemm<float>(const CBLAS_TRANSPOSE TransA,
       ldb, beta, C, N);
 }
 
+/** 
+  使用double类型偏特化一个函数模板，实现double类型的矩阵相乘。从实现中可以看出它
+  是对BLAS库的封装调用，简化了参数的个数。
+  */
 template<>
 void caffe_cpu_gemm<double>(const CBLAS_TRANSPOSE TransA,
     const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
@@ -31,6 +47,12 @@ void caffe_cpu_gemm<double>(const CBLAS_TRANSPOSE TransA,
       ldb, beta, C, N);
 }
 
+/**
+  使用float类型偏特化一个矩阵与矢量相乘的函数。 
+  从实现中可以看出来，在C语言或 c++之类的语言中，矩阵是行主序的(fortran语言和malab
+  语言中是列主序的), 行主序的 意思就是在一个矩阵的元素表示中最右边的下标变化最快。  
+  原生的cblas_sgemv函数中，有很多参数，通过封装对它进行了简化，方便在caffe中使用。
+  */
 template <>
 void caffe_cpu_gemv<float>(const CBLAS_TRANSPOSE TransA, const int M,
     const int N, const float alpha, const float* A, const float* x,
@@ -38,6 +60,12 @@ void caffe_cpu_gemv<float>(const CBLAS_TRANSPOSE TransA, const int M,
   cblas_sgemv(CblasRowMajor, TransA, M, N, alpha, A, N, x, 1, beta, y, 1);
 }
 
+/**
+  使用double类型偏特化一个矩阵与矢量相乘的函数。 
+  从实现中可以看出来，在C语言或 c++之类的语言中，矩阵是行主序的(fortran语言和malab
+  语言中是列主序的), 行主序的 意思就是在一个矩阵的元素表示中最右边的下标变化最快。  
+  原生的cblas_sgemv函数中，有很多参数，通过封装对它进行了简化，方便在caffe中使用。
+  */
 template <>
 void caffe_cpu_gemv<double>(const CBLAS_TRANSPOSE TransA, const int M,
     const int N, const double alpha, const double* A, const double* x,
@@ -45,14 +73,78 @@ void caffe_cpu_gemv<double>(const CBLAS_TRANSPOSE TransA, const int M,
   cblas_dgemv(CblasRowMajor, TransA, M, N, alpha, A, N, x, 1, beta, y, 1);
 }
 
+/**
+  使用float类型偏特化一个矢量与矢量的计算函数: 矢量Y = alpha * 矢量X + 矢量Y
+  从代码实现中可以看出来，cblas中的函数接口还包含了步长的参数, 但是caffe中使用
+  不到其它场景，所以就默认设置为1完全满足。
+  */
 template <>
 void caffe_axpy<float>(const int N, const float alpha, const float* X,
     float* Y) { cblas_saxpy(N, alpha, X, 1, Y, 1); }
 
+/**
+  使用double类型偏特化一个矢量与矢量的计算函数: 矢量Y = alpha * 矢量X + 矢量Y
+  从代码实现中可以看出来，cblas中的函数接口还包含了步长的参数, 但是caffe中使用
+  不到其它场景，所以就默认设置为1完全满足。
+  */
 template <>
 void caffe_axpy<double>(const int N, const double alpha, const double* X,
     double* Y) { cblas_daxpy(N, alpha, X, 1, Y, 1); }
 
+/**
+  使用float类型偏特化一个矢量与矢量的计算函数: 矢量Y = alpha * 矢量X + beta * 矢量Y
+  从代码实现中可以看出来，cblas中的函数接口还包含了步长的参数, 但是caffe中使用
+  不到其它场景，所以就默认设置为1完全满足。
+  */
+template <>
+void caffe_cpu_axpby<float>(const int N, const float alpha, const float* X,
+                            const float beta, float* Y) {
+  cblas_saxpby(N, alpha, X, 1, beta, Y, 1);
+}
+
+/**
+  使用double类型偏特化一个矢量与矢量的计算函数: 矢量Y = alpha * 矢量X + beta * 矢量Y
+  从代码实现中可以看出来，cblas中的函数接口还包含了步长的参数, 但是caffe中使用
+  不到其它场景，所以就默认设置为1完全满足。
+  */
+template <>
+void caffe_cpu_axpby<double>(const int N, const double alpha, const double* X,
+                             const double beta, double* Y) {
+  cblas_daxpby(N, alpha, X, 1, beta, Y, 1);
+}
+
+/**
+  具体实现：如果工作在GPU模式下，就使用cudaMemcpy函数来实现数据的复制，如果工作在
+  cpu模式下，就使用memcpy函数来实现。无论是在cudaMemcpy函数中还是在memcpy函数中，目
+  的地址都是在前，源地址在后, 顺序正好与本函数相反。
+  */
+template <typename Dtype>
+void caffe_copy(const int N, const Dtype* X, Dtype* Y) {
+  // if判断语句可能很多人一开始会忘记。
+  if (X != Y) {
+    if (Caffe::mode() == Caffe::GPU) {
+#ifndef CPU_ONLY
+      // NOLINT_NEXT_LINE(caffe/alt_fn)
+      CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
+#else
+      NO_GPU;
+#endif
+    } else {
+      memcpy(Y, X, sizeof(Dtype) * N);  // NOLINT(caffe/alt_fn)
+    }
+  }
+}
+
+template void caffe_copy<int>(const int N, const int* X, int* Y);
+template void caffe_copy<unsigned int>(const int N, const unsigned int* X,
+    unsigned int* Y);
+template void caffe_copy<float>(const int N, const float* X, float* Y);
+template void caffe_copy<double>(const int N, const double* X, double* Y);
+
+/**
+  在具体实现中，如果是置0的话，可以直接使用memset函数进行bit层的清零操作;否则的
+  的话，只能一个个的进行赋值操作。
+  */
 template <typename Dtype>
 void caffe_set(const int N, const Dtype alpha, Dtype* Y) {
   if (alpha == 0) {
@@ -82,28 +174,6 @@ void caffe_add_scalar(const int N, const double alpha, double* Y) {
   }
 }
 
-template <typename Dtype>
-void caffe_copy(const int N, const Dtype* X, Dtype* Y) {
-  if (X != Y) {
-    if (Caffe::mode() == Caffe::GPU) {
-#ifndef CPU_ONLY
-      // NOLINT_NEXT_LINE(caffe/alt_fn)
-      CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
-#else
-      NO_GPU;
-#endif
-    } else {
-      memcpy(Y, X, sizeof(Dtype) * N);  // NOLINT(caffe/alt_fn)
-    }
-  }
-}
-
-template void caffe_copy<int>(const int N, const int* X, int* Y);
-template void caffe_copy<unsigned int>(const int N, const unsigned int* X,
-    unsigned int* Y);
-template void caffe_copy<float>(const int N, const float* X, float* Y);
-template void caffe_copy<double>(const int N, const double* X, double* Y);
-
 template <>
 void caffe_scal<float>(const int N, const float alpha, float *X) {
   cblas_sscal(N, alpha, X, 1);
@@ -112,18 +182,6 @@ void caffe_scal<float>(const int N, const float alpha, float *X) {
 template <>
 void caffe_scal<double>(const int N, const double alpha, double *X) {
   cblas_dscal(N, alpha, X, 1);
-}
-
-template <>
-void caffe_cpu_axpby<float>(const int N, const float alpha, const float* X,
-                            const float beta, float* Y) {
-  cblas_saxpby(N, alpha, X, 1, beta, Y, 1);
-}
-
-template <>
-void caffe_cpu_axpby<double>(const int N, const double alpha, const double* X,
-                             const double beta, double* Y) {
-  cblas_daxpby(N, alpha, X, 1, beta, Y, 1);
 }
 
 template <>
@@ -252,6 +310,9 @@ float caffe_nextafter(const float b);
 template
 double caffe_nextafter(const double b);
 
+/**
+  在具体实现中，调用了boost库中的服从给定分布的随机生成函数，
+  */
 template <typename Dtype>
 void caffe_rng_uniform(const int n, const Dtype a, const Dtype b, Dtype* r) {
   CHECK_GE(n, 0);
@@ -273,6 +334,9 @@ template
 void caffe_rng_uniform<double>(const int n, const double a, const double b,
                                double* r);
 
+/**
+  在具体实现中，调用了boost库中的服从给定分布的随机生成函数，
+  */
 template <typename Dtype>
 void caffe_rng_gaussian(const int n, const Dtype a,
                         const Dtype sigma, Dtype* r) {
@@ -295,6 +359,9 @@ template
 void caffe_rng_gaussian<double>(const int n, const double mu,
                                 const double sigma, double* r);
 
+/**
+  在具体实现中，调用了boost库中的服从给定分布的随机生成函数，
+  */
 template <typename Dtype>
 void caffe_rng_bernoulli(const int n, const Dtype p, int* r) {
   CHECK_GE(n, 0);
