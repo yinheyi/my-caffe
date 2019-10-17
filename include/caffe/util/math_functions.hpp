@@ -97,7 +97,7 @@ inline void caffe_memset(const size_t N, const int alpha, void* X) {
 
 /**
   @brief 功能描述：在矢量中每一个元素上添加一个标量：
-   矢量X = 矢量X + alpha + [1,1, 1, .....1]' 
+   矢量X = 矢量X + alpha * [1,1, 1, .....1]' 
   @param [in] N     矢量的元素个数。
   @param [in] alpha 要增加的标题的值。
   @param [in,out] X 矢量X的地址。
