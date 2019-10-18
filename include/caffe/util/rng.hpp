@@ -30,7 +30,7 @@ inline rng_t* caffe_rng() {
   @brief 使用Fisher-Yates算法来完成对指定区间内元素的洗牌。
   @param [in] begin  迭代器的begin.
   @param [in] end    迭代器的end.
-  @param [in] gen    随机数产生器,它应该是一个重载了()的类指针或是一个函数指针, 使用它的结果当作随机种子。
+  @param [in] gen    随机数产生器,它应该是一个重载了()的类指针或是一个函数指针。
 
   具体来说，fisher-yates算法就是：一张张地从样本集中随机抽取出一个样本，直到抽取完毕。
   在该函数模板中， 它所支持的容器必须是可以随机访问的，在std容器中只有vector和array具
@@ -39,8 +39,10 @@ inline rng_t* caffe_rng() {
 template <class RandomAccessIterator, class RandomGenerator>
 inline void shuffle(RandomAccessIterator begin, RandomAccessIterator end,
                     RandomGenerator* gen) {
+
   typedef typename std::iterator_traits<RandomAccessIterator>::difference_type
       difference_type;
+  // 均匀分布
   typedef typename boost::uniform_int<difference_type> dist_type;
 
   difference_type length = std::distance(begin, end);

@@ -86,7 +86,11 @@ int Caffe::FindDevice(const int start_id) {
   return -1;
 }
 
-// 又定义了一个Generator的类，怎么一层层的定义个没完没了的呢？
+/**
+  @brief 在RNG类中定义了一个Generator类，RNG类的实际操作交给Generator类
+  来完成， 而Generator类工作又交给了boost::mt19937类来完成的。反正这一层
+  层的就是对最底层随机生成器的封装。
+  */
 class Caffe::RNG::Generator {
  public:
   Generator() : rng_(new caffe::rng_t(cluster_seedgen())) {}
