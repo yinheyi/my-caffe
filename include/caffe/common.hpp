@@ -110,15 +110,24 @@ class Caffe {
   enum Brew { CPU, GPU };
 
   /**
-    @brief 定义了一个RNG的类，该类对caffe_rng_t进行了封装 */
+    @brief 定义了一个RNG的类，该类的唯一一个作用就是返回一个随机数生成器: 要么是一个函数指针,
+    要么是一个重载了()操作符的类指针.
+
+    实际上，该类的具体工作交给了类内部定义的另一个Generator来去完成。而Generator类的具体工作
+    呢，又是交给了boost库中的boost::mt19937类来完成。
+   */
   class RNG {
    public:
     RNG();
     explicit RNG(unsigned int seed);
     explicit RNG(const RNG&);
     RNG& operator=(const RNG&);
+    /** 返回一个随机数生成器, 看看它的返回值是一个void类型的指针，之所以是void类型是因为不能
+      底层实现中的随机数生成器是什么类型的，但是可以肯定是函数指针或重载了()的类指针。*/
     void* generator();
+
    private:
+    // 实现工作是交给了Generator类来完成的。
     class Generator;
     shared_ptr<Generator> generator_;
   };
