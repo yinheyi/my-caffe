@@ -77,47 +77,123 @@ inline void MakeTempFilename(string* temp_filename) {
     (temp_files_subpath/caffe::format_int(next_temp_file++, 9)).string();
 }
 
+/**
+  @brief 功能描述：该函数实现从文本文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。
+  @param [in] filename 参数格式是char*类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 成功返回true,失败返回false.
+  */
 bool ReadProtoFromTextFile(const char* filename, Message* proto);
 
+  /**
+  @brief 功能描述：该函数实现从文本文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。
+  @param [in] filename 参数格式是string&类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 成功返回true,失败返回false.
+  */
 inline bool ReadProtoFromTextFile(const string& filename, Message* proto) {
   return ReadProtoFromTextFile(filename.c_str(), proto);
 }
 
+  /**
+  @brief 功能描述：该函数实现从文本文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。 如果读取
+  失败，则程序终止。
+  @param [in] filename 参数格式是char*类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 返回值为空。
+  */
 inline void ReadProtoFromTextFileOrDie(const char* filename, Message* proto) {
   CHECK(ReadProtoFromTextFile(filename, proto));
 }
 
+  /**
+  @brief 功能描述：该函数实现从文本文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。 如果读取
+  失败，则程序终止。
+  @param [in] filename 参数格式是string&类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 返回值为空。
+  */
 inline void ReadProtoFromTextFileOrDie(const string& filename, Message* proto) {
   ReadProtoFromTextFileOrDie(filename.c_str(), proto);
 }
 
+ /**
+   @brief 把Message类内的数据序列化到文本文件(名字格式通常是*.prototxt)中。
+   @param [in] proto     Message&类型，表示要序列化的Message类;
+   @param [in] filename  char*类型，表示要保存到的文件路径;
+   @return 返回值为空。
+   */
 void WriteProtoToTextFile(const Message& proto, const char* filename);
+  
+ /**
+   @brief 把Message类内的数据序列化到文本文件(名字格式通常是*.prototxt)中,如果指定的文件不
+   存在，则会新建一个文件。
+   @param [in] proto     Message&类型，表示要序列化的Message类;
+   @param [in] filename  string&类型，表示要保存到的文件路径;
+   @return 返回值为空。
+   */  
 inline void WriteProtoToTextFile(const Message& proto, const string& filename) {
   WriteProtoToTextFile(proto, filename.c_str());
 }
 
+/**
+  @brief 功能描述：该函数实现从二进制文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。
+  @param [in] filename 参数格式是char*类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 成功返回true,失败返回false.
+  */
 bool ReadProtoFromBinaryFile(const char* filename, Message* proto);
 
+/**
+  @brief 功能描述：该函数实现从二进制文件中读取定义好的protocol buffer内容至内存中Message类中, 即相当于解析的过程。
+  @param [in] filename 参数格式是string&类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  @return 成功返回true,失败返回false.
+  */
 inline bool ReadProtoFromBinaryFile(const string& filename, Message* proto) {
   return ReadProtoFromBinaryFile(filename.c_str(), proto);
 }
-
+  
+/**
+  @brief 功能描述：该函数实现从二进制文件中读取定义好的protocol buffer内容至内存中Message类中, 如果失败，则软件中止。
+  @param [in] filename 参数格式是char*类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  */
 inline void ReadProtoFromBinaryFileOrDie(const char* filename, Message* proto) {
   CHECK(ReadProtoFromBinaryFile(filename, proto));
 }
 
+/**
+  @brief 功能描述：该函数实现从二进制文件中读取定义好的protocol buffer内容至内存中Message类中, 如果失败，则软件中止。
+  @param [in] filename 参数格式是string类型，用于表示文件的路径名
+  @param [in] proto    参数格式是Message类指针， Message类应该是【根据protocol文件生成的所有Message类】的基类(我猜测的)
+  */
 inline void ReadProtoFromBinaryFileOrDie(const string& filename,
                                          Message* proto) {
   ReadProtoFromBinaryFileOrDie(filename.c_str(), proto);
 }
 
-
+/**
+  @brief 把Message类内的数据序列化到二进制文件中,如果指定的文件不存在，则会新建一个文件。
+  @param [in] proto     Message&类型，表示要序列化的Message类;
+  @param [in] filename  char*类型，表示要保存到的文件路径;
+  @return 返回值为空。
+  */  
 void WriteProtoToBinaryFile(const Message& proto, const char* filename);
+
+/**
+  @brief 把Message类内的数据序列化到二进制文件中,如果指定的文件不存在，则会新建一个文件。
+  @param [in] proto     Message&类型，表示要序列化的Message类;
+  @param [in] filename  string&类型，表示要保存到的文件路径;
+  @return 返回值为空。
+  */  
 inline void WriteProtoToBinaryFile(
     const Message& proto, const string& filename) {
   WriteProtoToBinaryFile(proto, filename.c_str());
 }
 
+ /**
+   */
 bool ReadFileToDatum(const string& filename, const int label, Datum* datum);
 
 inline bool ReadFileToDatum(const string& filename, Datum* datum) {
