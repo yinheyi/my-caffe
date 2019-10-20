@@ -60,16 +60,19 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
       const pair<int, int>& top_idx = blob_name_to_last_top_idx[blob_name];
       bottom_idx_to_source_top_idx[bottom_idx] = top_idx;
       
-      // 增加当前blob块作为top块时，feed给下一层作为bottom块时的
+      // 增加当前blob块作为top块时，feed给下一层作为bottom块时的数目。
       ++top_idx_to_bottom_count[top_idx];
     }
 
+    // 该for循环遍历所有的top块，建立top的name至top块ID(包含所在layer的ID以及是第几个top块的ID)的映射关系。
     for (int j = 0; j < layer_param.top_size(); ++j) {
       const string& blob_name = layer_param.top(j);
       blob_name_to_last_top_idx[blob_name] = make_pair(i, j);
     }
-    // A use of a top blob as a loss should be handled similarly to the use of
-    // a top blob as a bottom blob to another layer.
+
+    // 如果当前的top的blob块用于求loss, 则也要应该把当前的top块看作是loss层中的bottom块来处理。
+    // 因此，下面的for循环遍历所有用于求loss的top块，然后保存top块的Index到loss_weight的映射，同时，如果loss_weight
+    // 不为0的话，也应该递增当前top块在下一层中作为bottom块的计数值。
     const int last_loss =
         std::min(layer_param.loss_weight_size(), layer_param.top_size());
     for (int j = 0; j < last_loss; ++j) {
@@ -81,9 +84,11 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
       }
     }
   }
+
   for (int i = 0; i < param.layer_size(); ++i) {
     LayerParameter* layer_param = param_split->add_layer();
     layer_param->CopyFrom(param.layer(i));
+
     // Replace any shared bottom blobs with split layer outputs.
     for (int j = 0; j < layer_param->bottom_size(); ++j) {
       const pair<int, int>& top_idx =
