@@ -13,28 +13,54 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
   // Initialize by copying from the input NetParameter.
   param_split->CopyFrom(param);
   param_split->clear_layer();
+  
+  // blob块的名字  ----->>  blob块被作为top时所在的<layer的ID, layer的第几个top的ID>的映射。
   map<string, pair<int, int> > blob_name_to_last_top_idx;
+  
+  // bottom块的<LayerID, layer内第几个bottom的ID> ------>>  该bottom在一上层作为top时的<LayerID, Layer内第几个top的ID>
   map<pair<int, int>, pair<int, int> > bottom_idx_to_source_top_idx;
+  
+  // blob块被作为top时所在的<layer的ID, layer的第几个top的ID> ------->>   该blob块被上层layer作为bottom块的计数值
   map<pair<int, int>, int> top_idx_to_bottom_count;
+  
+  //  blob块被作为top时所在的<layer的ID, layer的第几个top的ID>    ---->>  该blob块被用于求loss时的相应的权重系数
   map<pair<int, int>, float> top_idx_to_loss_weight;
+  
+  
   map<pair<int, int>, int> top_idx_to_bottom_split_idx;
+  
+  // layer在net中的ID --------->>  layer的名字
   map<int, string> layer_idx_to_layer_name;
+  
+  // 该for循环遍历每一个net中的每一个layer并进行相关操作：
   for (int i = 0; i < param.layer_size(); ++i) {
 
+    // 获取当前layer的名字以及它在net中的位置ID(指的是它是第几个layer)
     const LayerParameter& layer_param = param.layer(i);
     layer_idx_to_layer_name[i] = layer_param.name();
 
+    // 该for循环遍历当前layer中的每一个bottom块进行相当操作：
     for (int j = 0; j < layer_param.bottom_size(); ++j) {
-
+      // 获取当前blob块的name.
       const string& blob_name = layer_param.bottom(j);
+      
+      // 除了输入的layer没有bottom块之外，其它的layer都应该存在bottom块的，并且这个bottom块
+      // 一定是上一层layer中的top块。在遍历上一层layer的top块时，已经把相关信息添加到了blob_name_to_last_top_idx中，
+      // 如果当前layer中的一些bottom块不存在 ，则说明了上一层的layer与当前层的layer连接不起来，
+      // 因此必须报错，终止程序！
       if (blob_name_to_last_top_idx.find(blob_name) ==
           blob_name_to_last_top_idx.end()) {
         LOG(FATAL) << "Unknown bottom blob '" << blob_name << "' (layer '"
                    << layer_param.name() << "', bottom index " << j << ")";
       }
+      
+      // 求得当前blob块在前层作为bottom时的index以及在上一层作为top时的index, 然后建立映射
+      // 关系存放到bottom_idx_to_source_top_idx中。
       const pair<int, int>& bottom_idx = make_pair(i, j);
       const pair<int, int>& top_idx = blob_name_to_last_top_idx[blob_name];
       bottom_idx_to_source_top_idx[bottom_idx] = top_idx;
+      
+      // 增加当前blob块作为top块时，feed给下一层作为bottom块时的
       ++top_idx_to_bottom_count[top_idx];
     }
 
