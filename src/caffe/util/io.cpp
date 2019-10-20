@@ -31,6 +31,12 @@ using google::protobuf::io::ZeroCopyOutputStream;
 using google::protobuf::io::CodedOutputStream;
 using google::protobuf::Message;
 
+ /** 
+   调用google::rotobuf内的函数来完成对proto.txt文件的解析过程，即反序列化。具体为：
+    1. 打开给定的文件，获取打开文件的文件描述符;  
+    2. 使用文件描述符初始化一个FileInputStream流; 
+    3. 调用TextFormat::Parse()函数进行解析;
+    */
 bool ReadProtoFromTextFile(const char* filename, Message* proto) {
   int fd = open(filename, O_RDONLY);
   CHECK_NE(fd, -1) << "File not found: " << filename;
@@ -41,8 +47,9 @@ bool ReadProtoFromTextFile(const char* filename, Message* proto) {
   return success;
 }
 
+
 void WriteProtoToTextFile(const Message& proto, const char* filename) {
-  int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);  // 只写/不存在时新建/截断原有内容(即清除原有内容)/新文件的权限
   FileOutputStream* output = new FileOutputStream(fd);
   CHECK(google::protobuf::TextFormat::Print(proto, output));
   delete output;
