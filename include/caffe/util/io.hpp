@@ -1,6 +1,7 @@
 #ifndef CAFFE_UTIL_IO_H_
 #define CAFFE_UTIL_IO_H_
 
+// 这里使用了boost库中的filesystem库，它可以创建/处理目录路径相关。
 #include <boost/filesystem.hpp>
 #include <iomanip>
 #include <iostream>  // NOLINT(readability/streams)
@@ -12,6 +13,12 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/format.hpp"
 
+/**
+  @define CAFFE_TMP_DIR_RETRIES
+  @brief 定义了一个宏，用于在创建临时路径名是的偿试次数。
+  @details 该宏存在的意意义是：因为临时路径名是随机创建的，它可能会出现创建的路径名已经存在的情况，
+  这时候会创建失败，所以呢，这时使用到一个偿试次数。
+  */
 #ifndef CAFFE_TMP_DIR_RETRIES
 #define CAFFE_TMP_DIR_RETRIES 100
 #endif
@@ -21,8 +28,22 @@ namespace caffe {
 using ::google::protobuf::Message;
 using ::boost::filesystem::path;
 
+/**
+  @brief 功能描述：该函数用于创建一个临时的目录名(即路径名).
+  @param [out] temp_dirpaname 输出创建好的目录名。
+  @return 返回值是bool类型，指明是否创建成功。
+  
+   具体实现中，都通过调用boost库中的filesystem库来完成的: 在boost::filesystem库中使用一个类来表
+  示path, 这样做特别的灵活，具体很高的移植性。因为一个路径名可以使用多种形式表示，可能是char*, 
+  可能是w_char*, 可能是string,可能是迭代器表示的一个区间范围等。  “/" 重载运算符的作用是append！！
+  1. 创建一个临时的路径名，在此基本上增加了相同的最后的目录名"caffe_test.%%%%-%%%%".  
+  2. 调用unique_path函数随机生成替代字符串来代替%%%%-%%%%部分。
+  3. 调用create_directory函数来偿试生成目录，并以string的格式返回创建的目录名。
+  */
 inline void MakeTempDir(string* temp_dirname) {
   temp_dirname->clear();
+  
+ 
   const path& model =
     boost::filesystem::temp_directory_path()/"caffe_test.%%%%-%%%%";
   for ( int i = 0; i < CAFFE_TMP_DIR_RETRIES; i++ ) {
