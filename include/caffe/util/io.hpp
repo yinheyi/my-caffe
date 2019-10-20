@@ -43,9 +43,9 @@ using ::boost::filesystem::path;
 inline void MakeTempDir(string* temp_dirname) {
   temp_dirname->clear();
   
- 
   const path& model =
     boost::filesystem::temp_directory_path()/"caffe_test.%%%%-%%%%";
+  
   for ( int i = 0; i < CAFFE_TMP_DIR_RETRIES; i++ ) {
     const path& dir = boost::filesystem::unique_path(model).string();
     bool done = boost::filesystem::create_directory(dir);
@@ -57,15 +57,22 @@ inline void MakeTempDir(string* temp_dirname) {
   LOG(FATAL) << "Failed to create a temporary directory.";
 }
 
+/**
+  @brief 功能描述：生成一个在临时目录下的临时文件名， 返回的文件名是包含了路径的！
+  @param [out] temp_filename 用于返回生成的临时文件名。
+  @return 返回值为空。
+  */
 inline void MakeTempFilename(string* temp_filename) {
-  static path temp_files_subpath;
-  static uint64_t next_temp_file = 0;
+  static path temp_files_subpath;      ///< static类型，用于保存临时的路径名，目录只生成一次就OK了。
+  static uint64_t next_temp_file = 0;  ///< static类型，用于计数下一个将要生成的文件名，即文件名依次为0，1，2, ...
   temp_filename->clear();
   if ( temp_files_subpath.empty() ) {
     string path_string="";
     MakeTempDir(&path_string);
     temp_files_subpath = path_string;
   }
+  
+  /** 使用到的format_int()函数是在util/format.hpp文件中定义的。*/
   *temp_filename =
     (temp_files_subpath/caffe::format_int(next_temp_file++, 9)).string();
 }
