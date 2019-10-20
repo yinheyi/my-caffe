@@ -192,10 +192,22 @@ inline void WriteProtoToBinaryFile(
   WriteProtoToBinaryFile(proto, filename.c_str());
 }
 
- /**
+ /** 
+   @brief 功能描述：从文件中读取数据至Datum结构中，其中Datum是在src/caffe/proto/caffe.proto定义的。
+   @param [in]  filename 要读取的文件路径，从中读取data设置到Datum中;
+   @param [in]  label    要设置到Datum中的label值;
+   @param [out] datum    要设置的Datum指针;
+   @return 文件读取成功时就返回true, 失败返回false.
    */
 bool ReadFileToDatum(const string& filename, const int label, Datum* datum);
 
+ /** 
+   @brief 功能描述：从文件中读取数据至Datum结构中，其中Datum是在src/caffe/proto/caffe.proto定义的. Datum的label
+   值默认设置为-1.
+   @param [in]  filename 要读取的文件路径，从中读取data设置到Datum中;
+   @param [out] datum    要设置的Datum指针;
+   @return 文件读取成功时就返回true, 失败返回false.
+   */
 inline bool ReadFileToDatum(const string& filename, Datum* datum) {
   return ReadFileToDatum(filename, -1, datum);
 }
