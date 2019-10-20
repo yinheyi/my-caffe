@@ -59,6 +59,8 @@ void WriteProtoToTextFile(const Message& proto, const char* filename) {
 bool ReadProtoFromBinaryFile(const char* filename, Message* proto) {
   int fd = open(filename, O_RDONLY);
   CHECK_NE(fd, -1) << "File not found: " << filename;
+ 
+  // 这一串的转换，protocol buffer相关, 具体先不看了，回头有时候再补！
   ZeroCopyInputStream* raw_input = new FileInputStream(fd);
   CodedInputStream* coded_input = new CodedInputStream(raw_input);
   coded_input->SetTotalBytesLimit(kProtoReadBytesLimit, 536870912);
@@ -152,14 +154,17 @@ bool ReadImageToDatum(const string& filename, const int label,
 bool ReadFileToDatum(const string& filename, const int label,
     Datum* datum) {
   std::streampos size;
-
-  fstream file(filename.c_str(), ios::in|ios::binary|ios::ate);
+  
+  // 从文件中读取data数据。
+  fstream file(filename.c_str(), ios::in|ios::binary|ios::ate);    // ios::ate 表示打开文件时立即寻位至流结尾
   if (file.is_open()) {
-    size = file.tellg();
-    std::string buffer(size, ' ');
-    file.seekg(0, ios::beg);
+    size = file.tellg();      // 返回当前流的位置指示器，看样子，它的大小应该是按字节来的。
+    std::string buffer(size, ' '); 
+    file.seekg(0, ios::beg);     // 设置位置至文件开头外。
     file.read(&buffer[0], size);
     file.close();
+   
+   // 设置datum的data/label/encode值
     datum->set_data(buffer);
     datum->set_label(label);
     datum->set_encoded(true);
