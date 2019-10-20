@@ -1,6 +1,13 @@
 #ifndef CAFFE_UTIL_MKL_ALTERNATE_H_
 #define CAFFE_UTIL_MKL_ALTERNATE_H_
 
+/**
+  @file mkl_alternate.hpp
+  @brief 该文件的主要作用是：MKL库中有一些函数在标准的BLAS库中不存在，当用户
+  不用户MKL库(毕竟是商用的，要花钱的)时, 要另外自己实现MKL存在而标准BLAS库中
+  不存在的那些函数。
+  */
+
 #ifdef USE_MKL
 
 #include <mkl.h>
