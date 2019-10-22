@@ -1039,6 +1039,7 @@ bool SolverNeedsTypeUpgrade(const SolverParameter& solver_param) {
   return false;
 }
 
+/** 使用新版本中的字符串类型来替换老版本的枚举类型。*/
 bool UpgradeSolverType(SolverParameter* solver_param) {
   CHECK(!solver_param->has_solver_type() || !solver_param->has_type())
       << "Failed to upgrade solver: old solver_type field (enum) and new type "
@@ -1076,9 +1077,10 @@ bool UpgradeSolverType(SolverParameter* solver_param) {
   return true;
 }
 
-// Check for deprecations and upgrade the SolverParameter as needed.
+/** 按需升级SolverParameter中的相关参数，目前为止只有表示solver的类型参数. */
 bool UpgradeSolverAsNeeded(const string& param_file, SolverParameter* param) {
   bool success = true;
+
   // Try to upgrade old style solver_type enum fields into new string type
   if (SolverNeedsTypeUpgrade(*param)) {
     LOG(INFO) << "Attempting to upgrade input file specified using deprecated "
@@ -1101,15 +1103,23 @@ bool UpgradeSolverAsNeeded(const string& param_file, SolverParameter* param) {
 // or is set to directory
 void UpgradeSnapshotPrefixProperty(const string& param_file,
                                    SolverParameter* param) {
+
+  // 这里使用了boost库中的filesystem库中了path类以及is_directory函数
   using boost::filesystem::path;
   using boost::filesystem::is_directory;
+
+  // 当没有设置snapshot_prefix时，使用solver参数文件的路径以及名称作为
+  // snapshot_prefix的值。.replace_extension()把后缀名删除掉了。 
   if (!param->has_snapshot_prefix()) {
     param->set_snapshot_prefix(path(param_file).replace_extension().string());
     LOG(INFO) << "snapshot_prefix was not specified and is set to "
                 + param->snapshot_prefix();
-  } else if (is_directory(param->snapshot_prefix())) {
+  }
+  // 当只提供了路径时，在路径名后面添加上solver参数文件名(不包含后缀).
+  // 下面代码中.stem()用于提取出排除了后缀的文件名。
+  else if (is_directory(param->snapshot_prefix())) {
     param->set_snapshot_prefix((path(param->snapshot_prefix()) /
-                               path(param_file).stem()).string());
+                               path(param_file).stem()).string()); 
     LOG(INFO) << "snapshot_prefix was a directory and is replaced to "
                 + param->snapshot_prefix();
   }
@@ -1120,7 +1130,10 @@ void ReadSolverParamsFromTextFileOrDie(const string& param_file,
                                        SolverParameter* param) {
   CHECK(ReadProtoFromTextFile(param_file, param))
       << "Failed to parse SolverParameter file: " << param_file;
+
+  // 为了向后兼容，维护一些旧版本的参数。
   UpgradeSolverAsNeeded(param_file, param);
+  // 在用户没有设置时，提供默认的snapshot文件的路径及文件名前缀。
   UpgradeSnapshotPrefixProperty(param_file, param);
 }
 
