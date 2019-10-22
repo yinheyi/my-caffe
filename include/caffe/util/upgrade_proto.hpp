@@ -71,15 +71,33 @@ bool NetNeedsBatchNormUpgrade(const NetParameter& net_param);
 // Perform all necessary transformations to upgrade batch norm layers.
 void UpgradeNetBatchNorm(NetParameter* net_param);
 
-// Return true iff the solver contains any old solver_type specified as enums
+/** 
+  @brief 该函数负责检测solver_param中是否包含了之前老版本中支持的solver_type参数，
+  它们是使用枚举类型表示的，新版本都使用字符串表示了。如果包含了老版本的参数，则
+  返回true, 意思就是需要进行solver的类型描述upgrade.
+  */
 bool SolverNeedsTypeUpgrade(const SolverParameter& solver_param);
 
+/**
+  @brief 该函数把solver参数中存在的旧版本中的枚举类型的solver_type更改为新版本中的
+  字符串表示的类型。
+  */
 bool UpgradeSolverType(SolverParameter* solver_param);
 
-// Check for deprecations and upgrade the SolverParameter as needed.
+/**
+  @brief 升级SolverParam中的需要修改的内容。原因是为了保持向后兼容，支持之前已经不使用的
+  参数. 目前主要是一条：在之前的版本中，Solver的类型是使用枚举类型定义的，现在修改为了使用
+  字符串来表示了。(例如：SGD, Nesterov, AdaGrad, RMSProp等)
+  */
 bool UpgradeSolverAsNeeded(const string& param_file, SolverParameter* param);
 
-// Read parameters from a file into a SolverParameter proto message.
+/**
+  @brief 从文件中读到solver的参数，并解析到SolverParameter类对象来存储, 它还会做一些额外必要
+  的情况，包含为了向后兼容性修改一些旧版本中的内容，以及在不提供snapshot的文件前缀或只提供了
+  路径的情况下，应该设置一个默认的值。
+  @param [in]  param_file 保存solver参数的文件位置。
+  @param [out] param      SolverParam的Proto的Message类指针。
+  */
 void ReadSolverParamsFromTextFileOrDie(const string& param_file,
                                        SolverParameter* param);
 
