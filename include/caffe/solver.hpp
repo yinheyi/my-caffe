@@ -10,14 +10,10 @@
 
 namespace caffe {
 
-/**
-  * @brief Enumeration of actions that a client of the Solver may request by
-  * implementing the Solver's action request function, which a
-  * client may optionally provide in order to request early termination
-  * or saving a snapshot without exiting. In the executable caffe, this
-  * mechanism is used to allow the snapshot to be saved when stopping
-  * execution with a SIGINT (Ctrl-C).
-  */
+  /**
+    @brief 该枚举类型用于一个函数的返回值，表示用于当收到SIGINT信号或SIGHUP信号时，
+    Caffe会做一些什么事情.具体要去看一个使用到的地方就明白了。
+    */
   namespace SolverAction {
     enum Enum {
       NONE = 0,  // Take no special action.
@@ -47,11 +43,17 @@ class Solver {
   void InitTrainNet();
   void InitTestNets();
 
-  // Client of the Solver optionally may call this in order to set the function
-  // that the solver uses to see what action it should take (e.g. snapshot or
-  // exit training early).
+  /**
+    @brief 设置获取Action的回调函数的指针给成员变量。
+    @param [in] func 要设置的回调函数。
+    */
   void SetActionFunction(ActionCallback func);
+
+  /** 
+    @brief 调用的设置的回调函数，获取需要执行的Action.
+   */
   SolverAction::Enum GetRequestedAction();
+
   // The main entry of the solver function. In default, iter will be zero. Pass
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
@@ -111,7 +113,7 @@ class Solver {
   void UpdateSmoothedLoss(Dtype loss, int start_iter, int average_loss);
 
   SolverParameter param_;
-  int iter_;
+  int iter_;    // 当前的
   int current_step_;
   shared_ptr<Net<Dtype> > net_;
   vector<shared_ptr<Net<Dtype> > > test_nets_;

@@ -209,20 +209,24 @@ void Solver<Dtype>::Step(int iters) {
   while (iter_ < stop_iter) {
     // zero-init the params
     net_->ClearParamDiffs();
+
+    // 满足test_interval时，进行测试. 在迭代一开始时，是否进行测试用参数中的test_initialization决定。
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
       if (Caffe::root_solver()) {
         TestAll();
       }
+
       if (requested_early_exit_) {
-        // Break out of the while loop because stop was requested while testing.
         break;
       }
     }
 
+    // 这个是干什么呢, 每次进行Start之前
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->on_start();
     }
+
     const bool display = param_.display() && iter_ % param_.display() == 0;
     net_->set_debug_info(display && param_.debug_info());
     // accumulate the loss and gradient
@@ -261,6 +265,7 @@ void Solver<Dtype>::Step(int iters) {
         }
       }
     }
+
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->on_gradients_ready();
     }
