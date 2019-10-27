@@ -47,51 +47,54 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   // 设置net的phase---- train/test.
   phase_ = in_param.state().phase();
 
-  // 基于state_rule 过滤掉一些不符合要求的layer.
+  // 基于state_rule 过滤掉一些不符合要求的layer， 把新的net的参数保存到filtered_param中。
   NetParameter filtered_param;
   FilterNet(in_param, &filtered_param);
   LOG_IF(INFO, Caffe::root_solver())
       << "Initializing net from parameters: " << std::endl
       << filtered_param.DebugString();
 
-  // Create a copy of filtered_param with splits added where necessary.
+ // 对于那些一个top块被多个上层的layer作为bottom块使用的场景，增加split层，确保了每一个存放计算数据
+ // 的blob块仅会连接两个前后的layer. InsertSplits函数是在src/util/目录下定义的。
   NetParameter param;
   InsertSplits(filtered_param, &param);
 
-  // Basically, build all the layers and set up their connections.
   name_ = param.name();
-  map<string, int> blob_name_to_idx;
-  set<string> available_blobs;
   memory_used_ = 0;
-  // For each layer, set up its input and output
+  
   bottom_vecs_.resize(param.layer_size());
-  top_vecs_.resize(param.layer_size());
   bottom_id_vecs_.resize(param.layer_size());
-  param_id_vecs_.resize(param.layer_size());
-  top_id_vecs_.resize(param.layer_size());
   bottom_need_backward_.resize(param.layer_size());
   
+  top_vecs_.resize(param.layer_size());
+  top_id_vecs_.resize(param.layer_size());
+ 
+  param_id_vecs_.resize(param.layer_size());
+  
+  // blob块的名字到blob块在blobs_成员变量中的索引值的映射，该局部变量的作用于与成员变量blob_names_index_的作用一样。
+  map<string, int> blob_name_to_idx;   
+  // 该变量的作用是：在增加一个layer的top块时，把它包含的所有top块的名字放进去，然后再增加下一层的layer的bottom块时，会
+  // 检测available_blobs中是否存在了该bottom块的名字，如果不存在,肯定就是错误的。(输入层只有top块)
+  set<string> available_blobs;
   for (int layer_id = 0; layer_id < param.layer_size(); ++layer_id) {
     // 当layer的phase不存在时，使用net的phase来代替。
     if (!param.layer(layer_id).has_phase()) {
       param.mutable_layer(layer_id)->set_phase(phase_);
     }
 
-    // 创建一个layer,并且把相应的指针和名字存放到成员变量内。
+    // 创建一个layer：(layer参数中的propagate_down说明了当前layer的每一个bottom块是否要进行反向传播)
     const LayerParameter& layer_param = param.layer(layer_id);
-    if (layer_param.propagate_down_size() > 0) {
-      CHECK_EQ(layer_param.propagate_down_size(),
-          layer_param.bottom_size())
-          << "propagate_down param must be specified "
-          << "either 0 or bottom_size times ";
+    if (layer_param.propagate_down_size() > 0) {    
+      CHECK_EQ(layer_param.propagate_down_size(), layer_param.bottom_size())
+          << "propagate_down param must be specified " << "either 0 or bottom_size times ";
     }
     layers_.push_back(LayerRegistry<Dtype>::CreateLayer(layer_param));
     layer_names_.push_back(layer_param.name());
-    LOG_IF(INFO, Caffe::root_solver())
-        << "Creating Layer " << layer_param.name();
+    LOG_IF(INFO, Caffe::root_solver()) << "Creating Layer " << layer_param.name();
 
 
-    bool need_backward = false;
+    bool need_backward = false;    // 当前创建的layer是否需要反向传播
+    
     // Figure out this layer's input and output
     for (int bottom_id = 0; bottom_id < layer_param.bottom_size(); ++bottom_id) {
       const int blob_id = AppendBottom(param, layer_id, bottom_id, &available_blobs, &blob_name_to_idx);
