@@ -23,12 +23,24 @@ namespace caffe {
 template <typename Dtype>
 class Net {
  public:
+ /**
+   @brief net的构造函数，所有的工作交给Init()函数来完成。
+   */
   explicit Net(const NetParameter& param);
-  explicit Net(const string& param_file, Phase phase,
-      const int level = 0, const vector<string>* stages = NULL);
+  
+ /**
+   @brief net的构造函数，首先从param_file路径中读取net的参数NetParameter中，然后再使用函数参数中的
+   phase/level/stages来设置NetParamter中的参数，最后还是把工作交给了Init()函数来完成。 
+   */
+  explicit Net(const string& param_file, Phase phase, const int level = 0, const vector<string>* stages = NULL);
   virtual ~Net() {}
 
-  /** @brief 使用网格参数初始化Net. 这里面干了好多事情。 */
+  /**
+    @brief 使用网格参数初始化Net. 这里面干了好多事情:  
+    1. 过滤掉与当前net的状态信息不匹配的layers.  
+    2. 对一个layer的top块被多个layer共享的情况，进行了插入split层layer的操作。  
+    3. 
+    */
   void Init(const NetParameter& param);
 
   /**
@@ -272,29 +284,31 @@ class Net {
   /// @brief Helper for displaying debug info in Update.
   void UpdateDebugInfo(const int param_id);
 
-  /// @brief The network name
-  string name_;
-  /// @brief The phase: TRAIN or TEST
-  Phase phase_;
-  /// @brief Individual layers in the net
-  vector<shared_ptr<Layer<Dtype> > > layers_;
-  vector<string> layer_names_;
-  map<string, int> layer_names_index_;
+  string name_;         //< 网络的名字
+  Phase phase_;         //< TRAIN or TEST
+  vector<shared_ptr<Layer<Dtype> > > layers_;    //< 当前net包含所有layers的指针
+  vector<string> layer_names_;                  //< 当前net包含所有layers的名字
+  map<string, int> layer_names_index_;          
   vector<bool> layer_need_backward_;
-  /// @brief the blobs storing intermediate results between the layer.
+  
+  // 整个net的数据的blob的相关信息，所有的数据的blob块都保存在blobs_中，每一个blob块的对应的相关属性保存在了
+  // blob_names_/blob_need_backward_/blob_names_index_等。
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   vector<string> blob_names_;
   map<string, int> blob_names_index_;
   vector<bool> blob_need_backward_;
-  /// bottom_vecs stores the vectors containing the input for each layer.
-  /// They don't actually host the blobs (blobs_ does), so we simply store
-  /// pointers.
-  vector<vector<Blob<Dtype>*> > bottom_vecs_;
+  
+  // 整个net中每一层layer的每一个bottom的blob块的指针保存了bottom_vecs_中，每一个blob块对应的相关属性信息保存
+  // 在了bootom_id_vecs_/bottom_need_backward_等。
+  vector<vector<Blob<Dtype>*> > bottom_vecs_; 
   vector<vector<int> > bottom_id_vecs_;
   vector<vector<bool> > bottom_need_backward_;
-  /// top_vecs stores the vectors containing the output for each layer
+  
+  // 整个net中每一层layer的每一个top的blob块的指针保存了top_vecs_中，每一个blob块对应的blob在blobs_中
+  // 的索引值保存在了top_id_vecs_中了。
   vector<vector<Blob<Dtype>*> > top_vecs_;
-  vector<vector<int> > top_id_vecs_;
+  vector<vector<int> > top_id_vecs_; 
+  
   /// Vector of weight in the loss (or objective) function of each net blob,
   /// indexed by blob_id.
   vector<Dtype> blob_loss_weights_;
@@ -303,11 +317,15 @@ class Net {
   vector<string> param_display_names_;
   vector<pair<int, int> > param_layer_indices_;
   map<string, int> param_names_index_;
-  /// blob indices for the input and the output of the net
-  vector<int> net_input_blob_indices_;
-  vector<int> net_output_blob_indices_;
+  
+  // net的输入的blob块以及输出的blob块的指针， 以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
+  // 对应blob块的一些属性信息。
   vector<Blob<Dtype>*> net_input_blobs_;
   vector<Blob<Dtype>*> net_output_blobs_;
+  vector<int> net_input_blob_indices_; 
+  vector<int> net_output_blob_indices_;
+
+  
   /// The parameters in the network.
   vector<shared_ptr<Blob<Dtype> > > params_;
   vector<Blob<Dtype>*> learnable_params_;
