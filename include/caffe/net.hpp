@@ -35,8 +35,7 @@ class Net {
     @brief 网络的正向传播函数，它调用ForwardFromTo()函数来完成实际的工作。
     @param [out] loss 它是一个指针，用于传出计算到的loss值。
     @return 返回是的输出的blobs.
-    */
-  const vector<Blob<Dtype>*>& Forward(Dtype* loss = NULL);
+    */ const vector<Blob<Dtype>*>& Forward(Dtype* loss = NULL);
 
   /**
    * The From and To variants of Forward and Backward operate on the
