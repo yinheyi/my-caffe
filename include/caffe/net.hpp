@@ -296,19 +296,19 @@ class Net {
   // blob_names_/blob_need_backward_/blob_names_index_等。
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   vector<string> blob_names_;
-  map<string, int> blob_names_index_;    // 这里的index_指的是对应的blob在blobs_中的索引值。
+  map<string, int> blob_names_index_;
   vector<bool> blob_need_backward_;
   
   // 整个net中每一层layer的每一个bottom的blob块的指针保存了bottom_vecs_中，每一个blob块对应的相关属性信息保存
   // 在了bootom_id_vecs_/bottom_need_backward_等。
   vector<vector<Blob<Dtype>*> > bottom_vecs_; 
-  vector<vector<int> > bottom_id_vecs_;           // 这里的index_指的是对应的blob在blobs_中的索引值。
+  vector<vector<int> > bottom_id_vecs_;
   vector<vector<bool> > bottom_need_backward_;
   
-  // 整个net中每一层layer的每一个top的blob块的指针保存了top_vecs_中，每一个blob块对应的相关属性信息保存
-  // 在了top_id_vecs_中了。
+  // 整个net中每一层layer的每一个top的blob块的指针保存了top_vecs_中，每一个blob块对应的blob在blobs_中
+  // 的索引值保存在了top_id_vecs_中了。
   vector<vector<Blob<Dtype>*> > top_vecs_;
-  vector<vector<int> > top_id_vecs_;            // 这里的index_指的是对应的blob在blobs_中的索引值。
+  vector<vector<int> > top_id_vecs_; 
   
   /// Vector of weight in the loss (or objective) function of each net blob,
   /// indexed by blob_id.
@@ -319,11 +319,13 @@ class Net {
   vector<pair<int, int> > param_layer_indices_;
   map<string, int> param_names_index_;
   
-  /// blob indices for the input and the output of the net
-  vector<int> net_input_blob_indices_;        // 网络输入的blob块在blobs_中的下标索引值。
-  vector<int> net_output_blob_indices_;
-  vector<Blob<Dtype>*> net_input_blobs_;     // 保存了所有的网络输入的blob块的
+  // net的输入的blob块以及输出的blob块的指针， 以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
+  // 对应blob块的一些属性信息。
+  vector<Blob<Dtype>*> net_input_blobs_;
   vector<Blob<Dtype>*> net_output_blobs_;
+  vector<int> net_input_blob_indices_; 
+  vector<int> net_output_blob_indices_;
+
   
   /// The parameters in the network.
   vector<shared_ptr<Blob<Dtype> > > params_;
