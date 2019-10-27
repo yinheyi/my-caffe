@@ -82,20 +82,20 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       param.mutable_layer(layer_id)->set_phase(phase_);
     }
 
-    // 创建一个layer：(layer参数中的propagate_down说明了当前layer的每一个bottom块是否要进行反向传播)
     const LayerParameter& layer_param = param.layer(layer_id);
+    // layer参数中的propagate_down说明了当前layer的每一个bottom块是否要进行反向传播. 
     if (layer_param.propagate_down_size() > 0) {    
       CHECK_EQ(layer_param.propagate_down_size(), layer_param.bottom_size())
           << "propagate_down param must be specified " << "either 0 or bottom_size times ";
     }
+    // 创建一个layer
     layers_.push_back(LayerRegistry<Dtype>::CreateLayer(layer_param));
     layer_names_.push_back(layer_param.name());
     LOG_IF(INFO, Caffe::root_solver()) << "Creating Layer " << layer_param.name();
 
-
     bool need_backward = false;    // 当前创建的layer是否需要反向传播
     
-    // Figure out this layer's input and output
+    // 向net中添加layer中的所有bottom块，
     for (int bottom_id = 0; bottom_id < layer_param.bottom_size(); ++bottom_id) {
       const int blob_id = AppendBottom(param, layer_id, bottom_id, &available_blobs, &blob_name_to_idx);
       need_backward |= blob_need_backward_[blob_id];  // If a blob needs backward, this layer should provide it.
@@ -115,7 +115,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       }
     }
     // 当layer_param参数中给出的top块个数少于了当前layer需要的top块的数目时，如果当前layer允许自动
-    // 设置top块的数目的话， 就需要增加的一些必要的top块 这个top块是没有名字的。
+    // 设置top块的数目的话，就需要增加的一些必要的top块 这个top块是没有名字的。
     Layer<Dtype>* layer = layers_[layer_id].get();
     if (layer->AutoTopBlobs()) {
       const int needed_num_top =
@@ -133,14 +133,17 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     LOG_IF(INFO, Caffe::root_solver()) << "Setting up " << layer_names_[layer_id];
     
     for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
+
+        // 把当前top块的loss 存放到blob_loss_weights_中 , loss是loss_weights吗？??
         if (blob_loss_weights_.size() <= top_id_vecs_[layer_id][top_id])
             blob_loss_weights_.resize(top_id_vecs_[layer_id][top_id] + 1, Dtype(0));
         blob_loss_weights_[top_id_vecs_[layer_id][top_id]] = layer->loss(top_id);
-        
+
         LOG_IF(INFO, Caffe::root_solver()) << "Top shape: " << top_vecs_[layer_id][top_id]->shape_string();
         if (layer->loss(top_id))
             LOG_IF(INFO, Caffe::root_solver())  << "    with loss weight " << layer->loss(top_id);
             
+        // 只会在此时增加内存,因为这时候new了一个blob块。
         memory_used_ += top_vecs_[layer_id][top_id]->count();
     }
     LOG_IF(INFO, Caffe::root_solver())  << "Memory required for data: " << memory_used_ * sizeof(Dtype);
@@ -379,29 +382,27 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
 
 // Helper for Net::Init: add a new top blob to the net.
 template <typename Dtype>
-void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
-                           const int top_id, set<string>* available_blobs,
-                           map<string, int>* blob_name_to_idx) {
-  shared_ptr<LayerParameter> layer_param(
-      new LayerParameter(param.layer(layer_id)));
+void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id, const int top_id,
+                           set<string>* available_blobs, map<string, int>* blob_name_to_idx) {
+  // 不明白它什么要重新new出来一个相同的layer_param呢？没有必要啊？？
+  shared_ptr<LayerParameter> layer_param(new LayerParameter(param.layer(layer_id)));
+
+  // 这里要说明一下：有时候在layer_param参数中给出的top的数目少于它实际需要的数目, 这时候就需要
+  // 自动添加一些无名的top块. 
   const string& blob_name = (layer_param->top_size() > top_id) ?
       layer_param->top(top_id) : "(automatic)";
-  // Check if we are doing in-place computation
-  if (blob_name_to_idx && layer_param->bottom_size() > top_id &&
+
+  // 检测是不是in-place计算，在in-place计算时，bottom块和top块是相同的, 此时的话不需要为tob块新申请
+  // 一个blob块. 
+  if (blob_name_to_idx && top_id < layer_param->bottom_size() &&
       blob_name == layer_param->bottom(top_id)) {
-    // In-place computation
-    LOG_IF(INFO, Caffe::root_solver())
-        << layer_param->name() << " -> " << blob_name << " (in-place)";
+    LOG_IF(INFO, Caffe::root_solver()) << layer_param->name() << " -> " << blob_name << " (in-place)";
     top_vecs_[layer_id].push_back(blobs_[(*blob_name_to_idx)[blob_name]].get());
     top_id_vecs_[layer_id].push_back((*blob_name_to_idx)[blob_name]);
-  } else if (blob_name_to_idx &&
-             blob_name_to_idx->find(blob_name) != blob_name_to_idx->end()) {
-    // If we are not doing in-place computation but have duplicated blobs,
-    // raise an error.
-    LOG(FATAL) << "Top blob '" << blob_name
-               << "' produced by multiple sources.";
+  } else if (blob_name_to_idx && blob_name_to_idx->find(blob_name) != blob_name_to_idx->end()) {
+    LOG(FATAL) << "Top blob '" << blob_name << "' produced by multiple sources.";
   } else {
-    // Normal output.
+     // 正常情况下，要new出来一个blob块的。
     if (Caffe::root_solver()) {
       LOG(INFO) << layer_param->name() << " -> " << blob_name;
     }
@@ -409,7 +410,9 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
     const int blob_id = blobs_.size();
     blobs_.push_back(blob_pointer);
     blob_names_.push_back(blob_name);
-    blob_need_backward_.push_back(false);
+
+    blob_need_backward_.push_back(false);    // 初始化为了false呢?
+
     if (blob_name_to_idx) { (*blob_name_to_idx)[blob_name] = blob_id; }
     top_id_vecs_[layer_id].push_back(blob_id);
     top_vecs_[layer_id].push_back(blob_pointer.get());
@@ -419,28 +422,35 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id,
 
 // Helper for Net::Init: add a new bottom blob to the net.
 template <typename Dtype>
-int Net<Dtype>::AppendBottom(const NetParameter& param, const int layer_id,
-    const int bottom_id, set<string>* available_blobs,
-    map<string, int>* blob_name_to_idx) {
+int Net<Dtype>::AppendBottom(const NetParameter& param, const int layer_id, const int bottom_id, 
+                             set<string>* available_blobs, map<string, int>* blob_name_to_idx) {
   const LayerParameter& layer_param = param.layer(layer_id);
   const string& blob_name = layer_param.bottom(bottom_id);
+
+  // availabel_blobs中应该包含名字为blob_name的blob块， 因为它是在上一层中的appendtop时添加进去的。
+  // 如果没有包含的话，说明net的定义文件有错误，因为net连接不起来！
   if (available_blobs->find(blob_name) == available_blobs->end()) {
     LOG(FATAL) << "Unknown bottom blob '" << blob_name << "' (layer '"
                << layer_param.name() << "', bottom index " << bottom_id << ")";
   }
+
   const int blob_id = (*blob_name_to_idx)[blob_name];
   LOG_IF(INFO, Caffe::root_solver()) << layer_names_[layer_id] << " <- " << blob_name;
   bottom_vecs_[layer_id].push_back(blobs_[blob_id].get());
   bottom_id_vecs_[layer_id].push_back(blob_id);
+
+  // 注意这里，使用了blob_name作为了当前layer的bottom之后，就把它删除掉，一个top块
+  // 仅且只会连接一个layer的bottom块。
   available_blobs->erase(blob_name);
+
   bool need_backward = blob_need_backward_[blob_id];
-  // Check if the backpropagation on bottom_id should be skipped
   if (layer_param.propagate_down_size() > 0) {
     need_backward = layer_param.propagate_down(bottom_id);
   }
   bottom_need_backward_[layer_id].push_back(need_backward);
   return blob_id;
 }
+
 
 template <typename Dtype>
 void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,

@@ -264,15 +264,36 @@ class Net {
   }
 
  protected:
-  // Helpers for Init.
-  /// @brief Append a new top blob to the net.
+  /**
+    @brief 该函数实现向net中添加一个top的blob块. 在该函数中会申请要添加的blob块.
+
+    @param [in] param     net的参数，通过它可以获取layer以及top的blob块的相关信息。
+    @param [in] layer_id  要添加的layer在ID, 即net中的第几个layer.
+    @param [in] top_id    要添加的layer中的top块的ID, 即当前layer中的第几个top块。
+    @param [out] available_blobs  这是一个set类型，把新添加的blob块放到里面去。
+    @param [out] blob_name_to_idx blob块的名字到它的blobs_列表中的索引值。
+    */
   void AppendTop(const NetParameter& param, const int layer_id,
                  const int top_id, set<string>* available_blobs,
                  map<string, int>* blob_name_to_idx);
-  /// @brief Append a new bottom blob to the net.
+
+  /**
+    @brief 该函数实现向net中添加一个bottom的blob块. 在该函数中不需要新申请要添加的bottom
+    的blob块, 因为这个blob块在前面的layer执行appendTop时已经申请内存了.
+
+    @param [in] param     net的参数，通过它可以获取layer以及bottom的blob块的相关信息。
+    @param [in] layer_id  要添加的layer在ID, 即net中的第几个layer.
+    @param [in] bottom_id 要添加的layer中的bottom块的ID, 即当前layer中的第几个bottom块。
+    @param [in] available_blobs  这是一个set类型，里面存放了前面的layer中的top块并且这
+    些还没有被其它layer层作为bottom的blob块, 也就是这些blob块还没有被其它layer连接起来呢。
+    @pram [in] blob_name_to_idx blob块的名字到它的blobs_列表中的索引值。
+
+    @return  返回添加到net中的bottom块的ID索引值(在blobs_中的第几个)
+    */
   int AppendBottom(const NetParameter& param, const int layer_id,
                    const int bottom_id, set<string>* available_blobs,
                    map<string, int>* blob_name_to_idx);
+
   /// @brief Append a new parameter blob to the net.
   void AppendParam(const NetParameter& param, const int layer_id,
                    const int param_id);
@@ -297,6 +318,7 @@ class Net {
   vector<string> blob_names_;
   map<string, int> blob_names_index_;
   vector<bool> blob_need_backward_;
+  vector<Dtype> blob_loss_weights_;    /// Vector of weight in the loss (or objective) function of each net blob,
   
   // 整个net中每一层layer的每一个bottom的blob块的指针保存了bottom_vecs_中，每一个blob块对应的相关属性信息保存
   // 在了bootom_id_vecs_/bottom_need_backward_等。
@@ -309,9 +331,6 @@ class Net {
   vector<vector<Blob<Dtype>*> > top_vecs_;
   vector<vector<int> > top_id_vecs_; 
   
-  /// Vector of weight in the loss (or objective) function of each net blob,
-  /// indexed by blob_id.
-  vector<Dtype> blob_loss_weights_;
   vector<vector<int> > param_id_vecs_;
   vector<int> param_owners_;
   vector<string> param_display_names_;
