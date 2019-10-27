@@ -233,17 +233,13 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   if (param.force_backward()) {
     for (int layer_id = 0; layer_id < layers_.size(); ++layer_id) {
       layer_need_backward_[layer_id] = true;
-      for (int bottom_id = 0;
-           bottom_id < bottom_need_backward_[layer_id].size(); ++bottom_id) {
+      for (int bottom_id = 0; bottom_id < bottom_need_backward_[layer_id].size(); ++bottom_id) {
         bottom_need_backward_[layer_id][bottom_id] =
-            bottom_need_backward_[layer_id][bottom_id] ||
-            layers_[layer_id]->AllowForceBackward(bottom_id);
+            bottom_need_backward_[layer_id][bottom_id] || layers_[layer_id]->AllowForceBackward(bottom_id);
         blob_need_backward_[bottom_id_vecs_[layer_id][bottom_id]] =
-            blob_need_backward_[bottom_id_vecs_[layer_id][bottom_id]] ||
-            bottom_need_backward_[layer_id][bottom_id];
+            blob_need_backward_[bottom_id_vecs_[layer_id][bottom_id]] || bottom_need_backward_[layer_id][bottom_id];
       }
-      for (int param_id = 0; param_id < layers_[layer_id]->blobs().size();
-           ++param_id) {
+      for (int param_id = 0; param_id < layers_[layer_id]->blobs().size(); ++param_id) {
         layers_[layer_id]->set_param_propagate_down(param_id, true);
       }
     }
@@ -430,8 +426,7 @@ int Net<Dtype>::AppendBottom(const NetParameter& param, const int layer_id,
                << layer_param.name() << "', bottom index " << bottom_id << ")";
   }
   const int blob_id = (*blob_name_to_idx)[blob_name];
-  LOG_IF(INFO, Caffe::root_solver())
-      << layer_names_[layer_id] << " <- " << blob_name;
+  LOG_IF(INFO, Caffe::root_solver()) << layer_names_[layer_id] << " <- " << blob_name;
   bottom_vecs_[layer_id].push_back(blobs_[blob_id].get());
   bottom_id_vecs_[layer_id].push_back(blob_id);
   available_blobs->erase(blob_name);
