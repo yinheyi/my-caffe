@@ -148,20 +148,18 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     }
     LOG_IF(INFO, Caffe::root_solver())  << "Memory required for data: " << memory_used_ * sizeof(Dtype);
 
+    // 把当前layer的param块添加到net中。
     const int param_size = layer_param.param_size();
     const int num_param_blobs = layers_[layer_id]->blobs().size();
-    CHECK_LE(param_size, num_param_blobs)
-        << "Too many params specified for layer " << layer_param.name();
+    CHECK_LE(param_size, num_param_blobs) << "Too many params specified for layer " << layer_param.name();
     ParamSpec default_param_spec;
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
       const ParamSpec* param_spec = (param_id < param_size) ?
           &layer_param.param(param_id) : &default_param_spec;
       const bool param_need_backward = param_spec->lr_mult() != 0;
       need_backward |= param_need_backward;
-      layers_[layer_id]->set_param_propagate_down(param_id,
-                                                  param_need_backward);
+      layers_[layer_id]->set_param_propagate_down(param_id, param_need_backward);
     }
-
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
       AppendParam(param, layer_id, param_id);
     }
@@ -453,12 +451,12 @@ int Net<Dtype>::AppendBottom(const NetParameter& param, const int layer_id, cons
 
 
 template <typename Dtype>
-void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
-                             const int param_id) {
+void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, const int param_id)
+{
   const LayerParameter& layer_param = layers_[layer_id]->layer_param();
-  const int param_size = layer_param.param_size();
-  string param_name =
-      (param_size > param_id) ? layer_param.param(param_id).name() : "";
+  const int param_size = layer_param.param_size();    // 在layer在参数中指定的权值数据块名称的数目, 在权值共享是会使用到。
+
+  string param_name = (param_size > param_id) ? layer_param.param(param_id).name() : "";
   if (param_name.size()) {
     param_display_names_.push_back(param_name);
   } else {
@@ -471,41 +469,47 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
   params_.push_back(layers_[layer_id]->blobs()[param_id]);
   param_id_vecs_[layer_id].push_back(net_param_id);
   param_layer_indices_.push_back(make_pair(layer_id, param_id));
+
   ParamSpec default_param_spec;
   const ParamSpec* param_spec = (layer_param.param_size() > param_id) ?
       &layer_param.param(param_id) : &default_param_spec;
+
+   // 下面的对应了非权值共享的参数块的添加: 条件是:
+   // 1. param_size为空时，说明有当前整个layer层都没有权值共享的机制(权值共享时需要指定ParamSpec)
+   // 2. 如果param_name为空时，说明了当前的这个权值块是没有权值共享机制的。
+   // 3. 当param_name不是空但是是每一次出现时，表现当前的权值块也不是共享别人的权值. 相反，当前的权值块
+   // 可能会被其它的layer进行权值共享。
   if (!param_size || !param_name.size() || (param_name.size() &&
       param_names_index_.find(param_name) == param_names_index_.end())) {
-    // This layer "owns" this parameter blob -- it is either anonymous
-    // (i.e., not given a param_name) or explicitly given a name that we
-    // haven't already seen.
-    param_owners_.push_back(-1);
+    param_owners_.push_back(-1);    // 因为当前的param块不共享其它的权值块，所以这个id置为-1.
     if (param_name.size()) {
       param_names_index_[param_name] = net_param_id;
     }
     const int learnable_param_id = learnable_params_.size();
     learnable_params_.push_back(params_[net_param_id].get());
     learnable_param_ids_.push_back(learnable_param_id);
+
     has_params_lr_.push_back(param_spec->has_lr_mult());
-    has_params_decay_.push_back(param_spec->has_decay_mult());
     params_lr_.push_back(param_spec->lr_mult());
+    has_params_decay_.push_back(param_spec->has_decay_mult());
     params_weight_decay_.push_back(param_spec->decay_mult());
   } else {
+
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
     param_owners_.push_back(owner_net_param_id);
-    const pair<int, int>& owner_index =
-        param_layer_indices_[owner_net_param_id];
+    const pair<int, int>& owner_index = param_layer_indices_[owner_net_param_id];
     const int owner_layer_id = owner_index.first;
     const int owner_param_id = owner_index.second;
     LOG_IF(INFO, Caffe::root_solver()) << "Sharing parameters '" << param_name
-        << "' owned by "
-        << "layer '" << layer_names_[owner_layer_id] << "', param "
+        << "' owned by " << "layer '" << layer_names_[owner_layer_id] << "', param "
         << "index " << owner_param_id;
+
     Blob<Dtype>* this_blob = layers_[layer_id]->blobs()[param_id].get();
-    Blob<Dtype>* owner_blob =
-        layers_[owner_layer_id]->blobs()[owner_param_id].get();
+    Blob<Dtype>* owner_blob = layers_[owner_layer_id]->blobs()[owner_param_id].get();
     const int param_size = layer_param.param_size();
+
+    // 检测在权值共享时，shape或count是否相同
     if (param_size > param_id && (layer_param.param(param_id).share_mode() ==
                                   ParamSpec_DimCheckMode_PERMISSIVE)) {
       // Permissive dimension checking -- only check counts are the same.
@@ -524,8 +528,12 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
           << "shape is " << owner_blob->shape_string() << "; sharing layer "
           << "expects shape " << this_blob->shape_string();
     }
+
+    // 从这里看出来，共享权值的param块对应的learnable_param_id是相同的。
     const int learnable_param_id = learnable_param_ids_[owner_net_param_id];
     learnable_param_ids_.push_back(learnable_param_id);
+
+    // 检测共享的权值的学习率和权值的衰减系数应该相同。
     if (param_spec->has_lr_mult()) {
       if (has_params_lr_[learnable_param_id]) {
         CHECK_EQ(param_spec->lr_mult(), params_lr_[learnable_param_id])
@@ -554,7 +562,6 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
   CHECK_LT(end, layers_.size());
   Dtype loss = 0;
   for (int i = start; i <= end; ++i) {
-
     // 前向传播之前可能需要执行的动作
     for (int c = 0; c < before_forward_.size(); ++c) {
       before_forward_[c]->run(i);
@@ -594,6 +601,7 @@ const vector<Blob<Dtype>*>& Net<Dtype>::Forward(Dtype* loss) {
 template <typename Dtype>
 void Net<Dtype>::Backward() {
   BackwardFromTo(layers_.size() - 1, 0);
+
   if (debug_info_) {
     Dtype asum_data = 0, asum_diff = 0, sumsq_data = 0, sumsq_diff = 0;
     for (int i = 0; i < learnable_params_.size(); ++i) {
@@ -739,8 +747,7 @@ void Net<Dtype>::ShareTrainedLayersWith(const Net* other) {
       continue;
     }
     DLOG(INFO) << "Copying source layer " << source_layer_name;
-    vector<shared_ptr<Blob<Dtype> > >& target_blobs =
-        layers_[target_layer_id]->blobs();
+    vector<shared_ptr<Blob<Dtype> > >& target_blobs = layers_[target_layer_id]->blobs();
     CHECK_EQ(target_blobs.size(), source_layer->blobs().size())
         << "Incompatible number of blobs for layer " << source_layer_name;
     for (int j = 0; j < target_blobs.size(); ++j) {

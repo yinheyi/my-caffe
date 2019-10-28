@@ -331,38 +331,31 @@ class Net {
   vector<vector<Blob<Dtype>*> > top_vecs_;
   vector<vector<int> > top_id_vecs_; 
   
-  vector<vector<int> > param_id_vecs_;
-  vector<int> param_owners_;
-  vector<string> param_display_names_;
-  vector<pair<int, int> > param_layer_indices_;
-  map<string, int> param_names_index_;
-  
   // net的输入的blob块以及输出的blob块的指针， 以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
   // 对应blob块的一些属性信息。
   vector<Blob<Dtype>*> net_input_blobs_;
   vector<Blob<Dtype>*> net_output_blobs_;
   vector<int> net_input_blob_indices_; 
   vector<int> net_output_blob_indices_;
-
   
-  /// The parameters in the network.
-  vector<shared_ptr<Blob<Dtype> > > params_;
-  vector<Blob<Dtype>*> learnable_params_;
-  /**
-   * The mapping from params_ -> learnable_params_: we have
-   * learnable_param_ids_.size() == params_.size(),
-   * and learnable_params_[learnable_param_ids_[i]] == params_[i].get()
-   * if and only if params_[i] is an "owner"; otherwise, params_[i] is a sharer
-   * and learnable_params_[learnable_param_ids_[i]] gives its owner.
-   */
+  // 下面这几个变量的size()是相同的, net中所有的params_
+  vector<shared_ptr<Blob<Dtype> > > params_;  
+  vector<string> param_display_names_;
+  vector<int> param_owners_;      // 每一个param块对应的真正拥有者的ID(在params_中的索引值)
   vector<int> learnable_param_ids_;
-  /// the learning rate multipliers for learnable_params_
-  vector<float> params_lr_;
-  vector<bool> has_params_lr_;
+  vector<pair<int, int> > param_layer_indices_;    // layer_id 和 param_id
 
-  /// the weight decay multipliers for learnable_params_
-  vector<float> params_weight_decay_;
+  vector<vector<int> > param_id_vecs_;
+
+  map<string, int> param_names_index_;    // 只会存放有名字的param块，这个param块用于了权值共享
+
+  //  下面几个变量的size()是相同的， 等于网络中非共享的param的个数, 这些参数是可以更新的。
+  vector<Blob<Dtype>*> learnable_params_;
+  vector<bool> has_params_lr_;
+  vector<float> params_lr_;
   vector<bool> has_params_decay_;
+  vector<float> params_weight_decay_;
+
   /// The bytes of memory used by this net
   size_t memory_used_;
   /// Whether to compute and display debug info for the net.
@@ -375,7 +368,6 @@ class Net {
 
 DISABLE_COPY_AND_ASSIGN(Net);
 };
-
 
 }  // namespace caffe
 
