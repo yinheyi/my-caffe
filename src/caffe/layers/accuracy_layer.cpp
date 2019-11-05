@@ -22,10 +22,11 @@ void AccuracyLayer<Dtype>::LayerSetUp(
 template <typename Dtype>
 void AccuracyLayer<Dtype>::Reshape(
   const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
-  CHECK_LE(top_k_, bottom[0]->count() / bottom[1]->count())
+  CHECK_LE(top_k_, bottom[0]->count() / bottom[1]->count())   // bottom[1]的count等于总的要分类的样本数。
       << "top_k must be less than or equal to the number of classes.";
-  label_axis_ =
-      bottom[0]->CanonicalAxisIndex(this->layer_param_.accuracy_param().axis());
+
+  // CanonicalAxisIndex函数对index进行了一个正则化，例如-1正则化到正整数。
+  label_axis_ = bottom[0]->CanonicalAxisIndex(this->layer_param_.accuracy_param().axis());
   outer_num_ = bottom[0]->count(0, label_axis_);
   inner_num_ = bottom[0]->count(label_axis_ + 1);
   CHECK_EQ(outer_num_ * inner_num_, bottom[1]->count())
@@ -51,7 +52,7 @@ void AccuracyLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* bottom_data = bottom[0]->cpu_data();
   const Dtype* bottom_label = bottom[1]->cpu_data();
   const int dim = bottom[0]->count() / outer_num_;
-  const int num_labels = bottom[0]->shape(label_axis_);
+  const int num_labels = bottom[0]->shape(label_axis_);    // 种类数, 0, 1, 2,....., num_labels - 1.
   if (top.size() > 1) {
     caffe_set(nums_buffer_.count(), Dtype(0), nums_buffer_.mutable_cpu_data());
     caffe_set(top[1]->count(), Dtype(0), top[1]->mutable_cpu_data());

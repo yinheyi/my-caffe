@@ -214,6 +214,7 @@ void caffe_mul<float>(const int n, const float* a, const float* b,
   vsMul(n, a, b, y);
 }
 
+// 计算： 向量y = 向量a * 向量b (对应元素与对应元素相乘)
 template <>
 void caffe_mul<double>(const int n, const double* a, const double* b,
     double* y) {
