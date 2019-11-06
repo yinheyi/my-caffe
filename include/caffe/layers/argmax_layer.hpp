@@ -10,31 +10,13 @@
 namespace caffe {
 
 /**
- * @brief Compute the index of the @f$ K @f$ max values for each datum across
- *        all dimensions @f$ (C \times H \times W) @f$.
- *
- * Intended for use after a classification layer to produce a prediction.
- * If parameter out_max_val is set to true, output is a vector of pairs
- * (max_ind, max_val) for each image. The axis parameter specifies an axis
- * along which to maximise.
- *
- * NOTE: does not implement Backwards operation.
- */
+  @brief argmax层用于多分类任务中，用于对分类结果的预测。
+  例如一共有10类，有一个样本s, s属于每一类的概率分别为p0, p1, .... p9, 选择概率最大的
+  那个index作为预测的分类结果。
+  */
 template <typename Dtype>
 class ArgMaxLayer : public Layer<Dtype> {
  public:
-  /**
-   * @param param provides ArgMaxParameter argmax_param,
-   *     with ArgMaxLayer options:
-   *   - top_k (\b optional uint, default 1).
-   *     the number @f$ K @f$ of maximal items to output.
-   *   - out_max_val (\b optional bool, default false).
-   *     if set, output a vector of pairs (max_ind, max_val) unless axis is set then
-   *     output max_val along the specified axis.
-   *   - axis (\b optional int).
-   *     if set, maximise along the specified axis else maximise the flattened
-   *     trailing dimensions for each index of the first / num dimension.
-   */
   explicit ArgMaxLayer(const LayerParameter& param)
       : Layer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
@@ -47,29 +29,19 @@ class ArgMaxLayer : public Layer<Dtype> {
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
  protected:
-  /**
-   * @param bottom input Blob vector (length 1)
-   *   -# @f$ (N \times C \times H \times W) @f$
-   *      the inputs @f$ x @f$
-   * @param top output Blob vector (length 1)
-   *   -# @f$ (N \times 1 \times K) @f$ or, if out_max_val
-   *      @f$ (N \times 2 \times K) @f$ unless axis set than e.g.
-   *      @f$ (N \times K \times H \times W) @f$ if axis == 1
-   *      the computed outputs @f$
-   *       y_n = \arg\max\limits_i x_{ni}
-   *      @f$ (for @f$ K = 1 @f$).
-   */
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+
   /// @brief Not implemented (non-differentiable function)
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
     NOT_IMPLEMENTED;
   }
-  bool out_max_val_;
-  size_t top_k_;
-  bool has_axis_;
-  int axis_;
+  bool out_max_val_;      // 是否要输出最大的概率值
+  size_t top_k_;          // 输出前k个高的概率值的label或概率值。
+  bool has_axis_;        // 是否指定在哪一个轴上进行argmax, 如果没有设置的话，会在除第0轴之外的所有轴上求argmax.例如：
+                         // bottom[0]的shape为[a,b,c,d], 如果没有指定axis, 则认为样本数为a, 样本的类别数为b*c*d, 即在b/c/d轴是求argmx.
+  int axis_;             // 指定的轴。
 };
 
 }  // namespace caffe
