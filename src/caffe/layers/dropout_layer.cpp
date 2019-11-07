@@ -15,6 +15,8 @@ void DropoutLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   DCHECK(threshold_ > 0.);
   DCHECK(threshold_ < 1.);
   scale_ = 1. / (1. - threshold_);
+
+  // 不知道该值有什么作用，下面的代码中也没有使用到。
   uint_thres_ = static_cast<unsigned int>(UINT_MAX * threshold_);
 }
 
@@ -34,12 +36,15 @@ void DropoutLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   Dtype* top_data = top[0]->mutable_cpu_data();
   unsigned int* mask = rand_vec_.mutable_cpu_data();
   const int count = bottom[0]->count();
+
+  // 从这里可以看出来，只有在训练的时候才进行dropout，在测试阶段不进行dropout操作。
   if (this->phase_ == TRAIN) {
-    // Create random numbers
+    // 采用伯努利分布来产生p = 1-dropout_ratio(该概率指产生1的概率)的随机的0和1.
     caffe_rng_bernoulli(count, 1. - threshold_, mask);
-    for (int i = 0; i < count; ++i) {
-      top_data[i] = bottom_data[i] * mask[i] * scale_;
-    }
+
+    // 应试可以采用BLAS库中的向量乘来代替此处的for循环的。
+    for (int i = 0; i < count; ++i)
+        top_data[i] = bottom_data[i] * mask[i] * scale_;
   } else {
     caffe_copy(bottom[0]->count(), bottom_data, top_data);
   }
@@ -49,7 +54,9 @@ template <typename Dtype>
 void DropoutLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
-  if (propagate_down[0]) {
+    if (!propagate_down[0])
+      return;
+
     const Dtype* top_diff = top[0]->cpu_diff();
     Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
     if (this->phase_ == TRAIN) {
@@ -61,7 +68,6 @@ void DropoutLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     } else {
       caffe_copy(top[0]->count(), top_diff, bottom_diff);
     }
-  }
 }
 
 
