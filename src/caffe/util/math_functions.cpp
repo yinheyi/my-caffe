@@ -184,6 +184,7 @@ void caffe_scal<double>(const int N, const double alpha, double *X) {
   cblas_dscal(N, alpha, X, 1);
 }
 
+/** @brief 执行 矢量y = 矢量a + 矢量b 的elmentwise操作, n表示元素的个数。 */
 template <>
 void caffe_add<float>(const int n, const float* a, const float* b,
     float* y) {
