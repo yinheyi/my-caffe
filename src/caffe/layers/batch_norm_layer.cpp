@@ -11,14 +11,25 @@ void BatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   BatchNormParameter param = this->layer_param_.batch_norm_param();
   moving_average_fraction_ = param.moving_average_fraction();
+
+  //看到了吧，默认训练时为false, 测试时为true. 如果你在配置文件中指定了，
+  // 那就按你指定的值来使用它。
   use_global_stats_ = this->phase_ == TEST;
   if (param.has_use_global_stats())
     use_global_stats_ = param.use_global_stats();
+
+  // 如果输入是一个一维的，则把channel置为1, 但是如果输入是2维的，把channel置为
+  // 输入块的shape(1),这么写代码，是不是有不具通用性？是不是应该使用axis和num_axes
+  // 来指定channel呢？
   if (bottom[0]->num_axes() == 1)
     channels_ = 1;
   else
     channels_ = bottom[0]->shape(1);
+
   eps_ = param.eps();
+
+  // layer的参数块中分别保存了累加的均值(向量, blobs[0]), 累加的方差(向量,blobs[1]), scale值(标量,
+  // blobs[2], 它用于表示一共累加了多少的均值或方差）
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
@@ -34,8 +45,10 @@ void BatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                 this->blobs_[i]->mutable_cpu_data());
     }
   }
+
   // Mask statistics from optimization by setting local learning rates
   // for mean, variance, and the bias correction to zero.
+  // 均值/方差/sclae参数在solver时是不需要更新的，把学习率置为0.
   for (int i = 0; i < this->blobs_.size(); ++i) {
     if (this->layer_param_.param_size() == i) {
       ParamSpec* fixed_param_spec = this->layer_param_.add_param();
@@ -55,8 +68,7 @@ void BatchNormLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     CHECK_EQ(bottom[0]->shape(1), channels_);
   top[0]->ReshapeLike(*bottom[0]);
 
-  vector<int> sz;
-  sz.push_back(channels_);
+  vector<int> sz(1, channels_);
   mean_.Reshape(sz);
   variance_.Reshape(sz);
   temp_.ReshapeLike(*bottom[0]);
@@ -78,33 +90,41 @@ void BatchNormLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       num_by_chans_.shape(0) != numbychans) {
     sz[0] = numbychans;
     num_by_chans_.Reshape(sz);
+
+    //  这个置1的动作为什么要放在if语句中呢？
     caffe_set(batch_sum_multiplier_.count(), Dtype(1),
         batch_sum_multiplier_.mutable_cpu_data());
   }
 }
 
+// 前向传播。
 template <typename Dtype>
 void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
-  int num = bottom[0]->shape(0);
+  int num = bottom[0]->shape(0);   // 可以看作样本的个数, 也就是bath_size。
   int spatial_dim = bottom[0]->count()/(bottom[0]->shape(0)*channels_);
 
   if (bottom[0] != top[0]) {
     caffe_copy(bottom[0]->count(), bottom_data, top_data);
   }
 
+  // 如果使用全局已经计算好的的均值和方差时，就从blobs_参数块中读取出它们。
+  // 如果不使用，它计算当前batch中的均值与方差。
   if (use_global_stats_) {
     // use the stored mean/variance estimates.
     const Dtype scale_factor = this->blobs_[2]->cpu_data()[0] == 0 ?
         0 : 1 / this->blobs_[2]->cpu_data()[0];
+    // 因为均值与方差保存的都是滑动累加和，所以还原它们时要乘以一个scale值。
     caffe_cpu_scale(variance_.count(), scale_factor,
         this->blobs_[0]->cpu_data(), mean_.mutable_cpu_data());
     caffe_cpu_scale(variance_.count(), scale_factor,
         this->blobs_[1]->cpu_data(), variance_.mutable_cpu_data());
   } else {
-    // compute mean
+    // 在channel和batch上计算均值，例如：输入的shape为[100, 3, 25, 25],则会计算得到
+    // 3个均值，一个样本有3个channle, 共100个样本，不同样本的相同channel之间一起计算
+    // 一个均值和方差。 所以叫作batch_norm。
     caffe_cpu_gemv<Dtype>(CblasNoTrans, channels_ * num, spatial_dim,
         1. / (num * spatial_dim), bottom_data,
         spatial_sum_multiplier_.cpu_data(), 0.,
@@ -114,7 +134,7 @@ void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         mean_.mutable_cpu_data());
   }
 
-  // subtract mean
+  // subtract mean, X-EX
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, channels_, 1, 1,
       batch_sum_multiplier_.cpu_data(), mean_.cpu_data(), 0.,
       num_by_chans_.mutable_cpu_data());
@@ -123,22 +143,31 @@ void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       spatial_sum_multiplier_.cpu_data(), 1., top_data);
 
   if (!use_global_stats_) {
-    // compute variance using var(X) = E((X-EX)^2)
-    caffe_sqr<Dtype>(top[0]->count(), top_data,
-                     temp_.mutable_cpu_data());  // (X-EX)^2
+   // compute variance using var(X) = E((X-EX)^2)
+
+    // (X-EX)^2
+    caffe_sqr<Dtype>(top[0]->count(), top_data, temp_.mutable_cpu_data());
+
+    // E((X_EX)^2)
     caffe_cpu_gemv<Dtype>(CblasNoTrans, channels_ * num, spatial_dim,
-        1. / (num * spatial_dim), temp_.cpu_data(),
+        1. / spatial_dim, temp_.cpu_data(),
         spatial_sum_multiplier_.cpu_data(), 0.,
         num_by_chans_.mutable_cpu_data());
-    caffe_cpu_gemv<Dtype>(CblasTrans, num, channels_, 1.,
+    caffe_cpu_gemv<Dtype>(CblasTrans, num, channels_, 1. / num,
         num_by_chans_.cpu_data(), batch_sum_multiplier_.cpu_data(), 0.,
-        variance_.mutable_cpu_data());  // E((X_EX)^2)
+        variance_.mutable_cpu_data());
 
     // compute and save moving average
+    // 保存新计算的均值和方差的滑动累加和
     this->blobs_[2]->mutable_cpu_data()[0] *= moving_average_fraction_;
     this->blobs_[2]->mutable_cpu_data()[0] += 1;
     caffe_cpu_axpby(mean_.count(), Dtype(1), mean_.cpu_data(),
         moving_average_fraction_, this->blobs_[0]->mutable_cpu_data());
+
+    // 这里累加的是方差的无偏估计值:
+    //  Varaince(无偏） = 1 / (m-1) * E((X-EX)^2)
+    //  Varaince(有偏） = 1 / m * E((X-EX)^2)
+    //  Varaince(无偏） = m / (m-1) * Varaince(有偏）
     int m = bottom[0]->count()/channels_;
     Dtype bias_correction_factor = m > 1 ? Dtype(m)/(m-1) : 1;
     caffe_cpu_axpby(variance_.count(), bias_correction_factor,
@@ -146,12 +175,14 @@ void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         this->blobs_[1]->mutable_cpu_data());
   }
 
-  // normalize variance
+  // normalize variance.
+  //  也就是对方差开根号，为了防止方差为0(因为标准差要作为除数的),添加了一个eps_的值。
   caffe_add_scalar(variance_.count(), eps_, variance_.mutable_cpu_data());
-  caffe_sqrt(variance_.count(), variance_.cpu_data(),
-             variance_.mutable_cpu_data());
+  caffe_sqrt(variance_.count(), variance_.cpu_data(), variance_.mutable_cpu_data());
 
   // replicate variance to input size
+  // 把标准差broadcast成与输入相同的shape, 然后使用top块(它的值为X-EX)除以标准差,就得到
+  // 了bath_norm后的输出值了。
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, channels_, 1, 1,
       batch_sum_multiplier_.cpu_data(), variance_.cpu_data(), 0.,
       num_by_chans_.mutable_cpu_data());
@@ -159,10 +190,11 @@ void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       spatial_dim, 1, 1., num_by_chans_.cpu_data(),
       spatial_sum_multiplier_.cpu_data(), 0., temp_.mutable_cpu_data());
   caffe_div(temp_.count(), top_data, temp_.cpu_data(), top_data);
+
   // TODO(cdoersch): The caching is only needed because later in-place layers
   //                 might clobber the data.  Can we skip this if they won't?
-  caffe_copy(x_norm_.count(), top_data,
-      x_norm_.mutable_cpu_data());
+  // 保存一份标准化后的数据到x_norm_中, 在backward中要使用。
+  caffe_copy(x_norm_.count(), top_data, x_norm_.mutable_cpu_data());
 }
 
 template <typename Dtype>

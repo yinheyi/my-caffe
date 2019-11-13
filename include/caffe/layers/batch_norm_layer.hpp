@@ -60,17 +60,25 @@ class BatchNormLayer : public Layer<Dtype> {
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
-  Blob<Dtype> mean_, variance_, temp_, x_norm_;
-  bool use_global_stats_;
-  Dtype moving_average_fraction_;
-  int channels_;
-  Dtype eps_;
+  Blob<Dtype> mean_;                     // 均值，一个size= channel的向量
+  Blob<Dtype> variance_;                 // 方差，一个size= channel的向量
+  Blob<Dtype> temp_;                     // 它的shape与bottom[0]相同, 用于保存中间计算过程中的临时变量(标准差broadcast成bottom[0]的shape的值)
+  Blob<Dtype> x_norm_;                   // 它的shape与bottom[0]相同, 保存了一份标准化之后的数据到它里面（与top块的值完全相同）,之所以备份一份，
+                                         // 是因为在backward()时需要top[0]的值，但是呢，不能保证后面的layer层会不会执行in-place计算，这样会把top[0]
+                                         // 的值覆盖了。
+
+
+  bool use_global_stats_;                // 表示在进行标准化时，是否使用已经保存的均值与方差，在测试阶段应该置为true.
+  Dtype moving_average_fraction_;        // 求累加和时，对旧值乘以该比例，即New = Old * 该值 + current.
+  int channels_;                         // channel的数目，对每一个channel上的元素(再加上batch_size)进行求均值和方差
+                                         // 所以，channel的数目等于均值或方差的数目。
+  Dtype eps_;                            // 
 
   // extra temporarary variables is used to carry out sums/broadcasting
   // using BLAS
-  Blob<Dtype> batch_sum_multiplier_;
-  Blob<Dtype> num_by_chans_;
-  Blob<Dtype> spatial_sum_multiplier_;
+  Blob<Dtype> batch_sum_multiplier_;      // 对batch维度求和时，使用该向量来对矩阵的行求和。
+  Blob<Dtype> num_by_chans_;              // 它用于存放对blob块在spatial维度(也就是一个channle上)求和之后的结果.
+  Blob<Dtype> spatial_sum_multiplier_;    // 对spatial维度求和时，使用该向量来对矩阵的行求和。 
 };
 
 }  // namespace caffe
