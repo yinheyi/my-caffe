@@ -197,11 +197,14 @@ void BatchNormLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   caffe_copy(x_norm_.count(), top_data, x_norm_.mutable_cpu_data());
 }
 
+// 梯度的反向传播，具体的公式你要推导一下的。
 template <typename Dtype>
 void BatchNormLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
-  const Dtype* top_diff;
+  const Dtype* top_diff = NULL;
+
+  // 对于in-place操作时， 要处理一下的。x_norm相一个备份的top[0]块。
   if (bottom[0] != top[0]) {
     top_diff = top[0]->cpu_diff();
   } else {
@@ -209,10 +212,13 @@ void BatchNormLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     top_diff = x_norm_.cpu_diff();
   }
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+
+  // 如果使用了之前保存的全局参数，这个反向传播的梯度是很简单的。
   if (use_global_stats_) {
     caffe_div(temp_.count(), top_diff, temp_.cpu_data(), bottom_diff);
     return;
   }
+
   const Dtype* top_data = x_norm_.cpu_data();
   int num = bottom[0]->shape()[0];
   int spatial_dim = bottom[0]->count()/(bottom[0]->shape(0)*channels_);
@@ -227,6 +233,8 @@ void BatchNormLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   // along all dimensions except the channels dimension.  In the above
   // equation, the operations allow for expansion (i.e. broadcast) along all
   // dimensions except the channels dimension where required.
+
+  // 下面的计算就完全按公式来的，英文注释中我认为有两处写错了，我修改了一下。
 
   // sum(dE/dY \cdot Y)
   caffe_mul(temp_.count(), top_data, top_diff, bottom_diff);
@@ -248,7 +256,8 @@ void BatchNormLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   // sum(dE/dY \cdot Y) \cdot Y
   caffe_mul(temp_.count(), top_data, bottom_diff, bottom_diff);
 
-  // sum(dE/dY)-sum(dE/dY \cdot Y) \cdot Y
+
+  // sum(dE/dY)
   caffe_cpu_gemv<Dtype>(CblasNoTrans, channels_ * num, spatial_dim, 1.,
       top_diff, spatial_sum_multiplier_.cpu_data(), 0.,
       num_by_chans_.mutable_cpu_data());
@@ -256,7 +265,7 @@ void BatchNormLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       num_by_chans_.cpu_data(), batch_sum_multiplier_.cpu_data(), 0.,
       mean_.mutable_cpu_data());
   // reshape (broadcast) the above to make
-  // sum(dE/dY)-sum(dE/dY \cdot Y) \cdot Y
+  // sum(dE/dY) + sum(dE/dY \cdot Y) \cdot Y
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, num, channels_, 1, 1,
       batch_sum_multiplier_.cpu_data(), mean_.cpu_data(), 0.,
       num_by_chans_.mutable_cpu_data());
