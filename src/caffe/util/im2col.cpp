@@ -11,10 +11,18 @@ namespace caffe {
 // therefore its value is always lower than 0x800... where casting
 // negative value of a parameter converts it to value higher than 0x800...
 // The casting allows to use one condition instead of two.
+
+// 判断a是不是>=0 并且小于b.
+// 实现很独特。
 inline bool is_a_ge_zero_and_a_lt_b(int a, int b) {
   return static_cast<unsigned>(a) < static_cast<unsigned>(b);
 }
 
+
+// 对一个二维的矩阵数组进行im2col操作。
+// 假如输出的结果矩阵为M * N, 在实现中先一行行地计算, 也就是对kernel每一个位置上的元素进行按
+// 特定步长移动并保存对应的位置的元素值，移动完了，也就生成了一行, 每一行的数目就等于卷积之后
+// 的矩阵的size。kernel中有多少个元素，就移动多少个来回，就生成了多少行。
 template <typename Dtype>
 void im2col_cpu(const Dtype* data_im, const int channels,
     const int height, const int width, const int kernel_h, const int kernel_w,
@@ -22,16 +30,25 @@ void im2col_cpu(const Dtype* data_im, const int channels,
     const int stride_h, const int stride_w,
     const int dilation_h, const int dilation_w,
     Dtype* data_col) {
+
+  // 这里计算的输出的高和宽是卷积后的高与宽; 而本函数计算的输出矩阵的列数等于卷积后的高× 宽。
   const int output_h = (height + 2 * pad_h -
     (dilation_h * (kernel_h - 1) + 1)) / stride_h + 1;
   const int output_w = (width + 2 * pad_w -
     (dilation_w * (kernel_w - 1) + 1)) / stride_w + 1;
   const int channel_size = height * width;
+
+  // 输出的矩阵可以看作是三维的，它的shape = [channels,  kernel_row*kernel_col, output_h*output_w].
   for (int channel = channels; channel--; data_im += channel_size) {
     for (int kernel_row = 0; kernel_row < kernel_h; kernel_row++) {
       for (int kernel_col = 0; kernel_col < kernel_w; kernel_col++) {
-        int input_row = -pad_h + kernel_row * dilation_h;
+
+        // 输入矩阵中的行号
+        int input_row = -pad_h + kernel_row * dilation_h; 
+
+        // 下面的计算，按假装映射到卷积后的矩阵样子进行计算的
         for (int output_rows = output_h; output_rows; output_rows--) {
+          // 如果当前输入行的pad出来的， 它的值就是0.
           if (!is_a_ge_zero_and_a_lt_b(input_row, height)) {
             for (int output_cols = output_w; output_cols; output_cols--) {
               *(data_col++) = 0;
@@ -39,6 +56,7 @@ void im2col_cpu(const Dtype* data_im, const int channels,
           } else {
             int input_col = -pad_w + kernel_col * dilation_w;
             for (int output_col = output_w; output_col; output_col--) {
+              // 如果列元素不是pad出来的，就存储原值，否则存储0。
               if (is_a_ge_zero_and_a_lt_b(input_col, width)) {
                 *(data_col++) = data_im[input_row * width + input_col];
               } else {
