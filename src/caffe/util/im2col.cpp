@@ -84,27 +84,49 @@ template void im2col_cpu<double>(const double* data_im, const int channels,
     const int stride_w, const int dilation_h, const int dilation_w,
     double* data_col);
 
+/**
+  @param [in或out] data_im image的数据。
+  @param [in] im2col 当为true时表示im 转换为col ,当为false时表示col转换为im.
+  @parama[in] num_spatial_aexs image或kernel或col的维度数目。
+  @param [in] im_shape image的shape, 它的size = num_spatial + 1, 其中im_shape[0]表示image的个数。
+  @param [in] col_shape 转换之后的column的shape, 它的size = num_spatial + 1, 其中col_shape[0]表示column的个数。
+  @param [in] kernel_shape kernel的shape,它的size = num_spatial_aexs.
+  @param [in] pad 在每一个维度上进行pad的值，它的size = num_spatial_aexs.
+  @param [in] stride 在每一个维度上的步长值，它的size = num_spatial_aexs.
+  @param [in] dilation 在每一个维度上进行dilation的值，它的size = num_spatial_aexs.
+  @param [in或out] data_col 保存输出之后的值。
+  */
 template <typename Dtype>
 inline void im2col_nd_core_cpu(const Dtype* data_input, const bool im2col,
     const int num_spatial_axes, const int* im_shape, const int* col_shape,
     const int* kernel_shape, const int* pad, const int* stride,
     const int* dilation, Dtype* data_output) {
   if (!im2col) {
-    int im_size = im_shape[0];
+    int im_size = im_shape[0];  // im的总的元素个数。
     for (int i = 0; i < num_spatial_axes; ++i) {
       im_size *= im_shape[1 + i];
     }
+    // 之所以提前把所有值置为0,是因为在进行col2im时，存放的累加和。
     caffe_set(im_size, Dtype(0), data_output);
   }
-  int kernel_size = 1;
+  int kernel_size = 1;   // kernel最元素的个数。
   for (int i = 0; i < num_spatial_axes; ++i) {
     kernel_size *= kernel_shape[i];
   }
-  const int channels_col = col_shape[0];
-  vector<int> d_offset(num_spatial_axes, 0);
-  vector<int> d_iter(num_spatial_axes, 0);
+
+  // 它的值等于im_shape[0] * kernel_size的值, 因为每一个kernel内的值通过在每一维度移动后会形成一个
+  // 多维的column, 如果输入有多个image,则形成多个column, 它的个数就等于sol_shape[0]的值,也就是shape[0]
+  // * kernel_size.
+  const int channels_col = col_shape[0]; 
+
+  // 它表示kernel内的每一个元素在kernel内每一维度上的偏移值。
+  vector<int> d_offset(num_spatial_axes, 0); 
+  // 它是重点，表示kernel内的每一元素在输入的image上每一维度移动时的偏移值，正是它的每一维度的增加，
+  // 驱使着输出数据一个个的生成。
+  vector<int> d_iter(num_spatial_axes, 0); 
   for (int c_col = 0; c_col < channels_col; ++c_col) {
     // Loop over spatial axes in reverse order to compute a per-axis offset.
+    // 找到当前的kernel的值在kernel上的偏值量，放到 d_offset中。
     int offset = c_col;
     for (int d_i = num_spatial_axes - 1; d_i >= 0; --d_i) {
       if (d_i < num_spatial_axes - 1) {
@@ -112,9 +134,13 @@ inline void im2col_nd_core_cpu(const Dtype* data_input, const bool im2col,
       }
       d_offset[d_i] = offset % kernel_shape[d_i];
     }
+
+    // 该for循环退出时，会正好生成一个多维的column.
     for (bool incremented = true; incremented; ) {
       // Loop over spatial axes in forward order to compute the indices in the
       // image and column, and whether the index lies in the padding.
+
+       // 找到一个值在输入image中的下标indec_im到输出column的下标index_col的映射
       int index_col = c_col;
       int index_im = c_col / kernel_size;
       bool is_padding = false;
@@ -126,8 +152,10 @@ inline void im2col_nd_core_cpu(const Dtype* data_input, const bool im2col,
         index_col *= col_shape[d_i + 1];
         index_col += d;
         index_im *= im_shape[d_i + 1];
-        index_im += d_im;
+        index_im += d_im;       // 当是pad时，计算出来的index_im是无效的。
       }
+
+      // 根据是im2col还是col2im,进行数据的存放。
       if (im2col) {
         if (is_padding) {
           data_output[index_col] = 0;
@@ -135,10 +163,12 @@ inline void im2col_nd_core_cpu(const Dtype* data_input, const bool im2col,
           data_output[index_col] = data_input[index_im];
         }
       } else if (!is_padding) {  // col2im
-        data_output[index_im] += data_input[index_col];
+        data_output[index_im] += data_input[index_col];    // 这里为什么是累加呢？
       }
       // Loop over spatial axes in reverse order to choose an index,
       // like counting.
+
+      // 这个地方也很关键，对前进的index值进行递增。
       incremented = false;
       for (int d_i = num_spatial_axes - 1; d_i >= 0; --d_i) {
         const int d_max = col_shape[d_i + 1];
@@ -151,8 +181,8 @@ inline void im2col_nd_core_cpu(const Dtype* data_input, const bool im2col,
           break;
         }
       }
-    }  // while(incremented) {
-  }  // for (int c = 0; c < channels_col; ++c) {
+    }
+  }
 }
 
 template <typename Dtype>
@@ -177,6 +207,7 @@ template void im2col_nd_cpu<double>(const double* data_im,
     const int* kernel_shape, const int* pad, const int* stride,
     const int* dilation, double* data_col);
 
+// 下面就是上面的反运算，与im2col_cpu代码几乎相同，只是数据的copy方向不同。
 template <typename Dtype>
 void col2im_cpu(const Dtype* data_col, const int channels,
     const int height, const int width, const int kernel_h, const int kernel_w,
@@ -201,7 +232,7 @@ void col2im_cpu(const Dtype* data_col, const int channels,
             int input_col = -pad_w + kernel_col * dilation_w;
             for (int output_col = output_w; output_col; output_col--) {
               if (is_a_ge_zero_and_a_lt_b(input_col, width)) {
-                data_im[input_row * width + input_col] += *data_col;
+                data_im[input_row * width + input_col] += *data_col;   // 这里为什么是累加呢？
               }
               data_col++;
               input_col += stride_w;
