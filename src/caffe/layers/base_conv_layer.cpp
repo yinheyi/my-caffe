@@ -15,11 +15,16 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   ConvolutionParameter conv_param = this->layer_param_.convolution_param();
   force_nd_im2col_ = conv_param.force_nd_im2col();
   channel_axis_ = bottom[0]->CanonicalAxisIndex(conv_param.axis());
+
   const int first_spatial_axis = channel_axis_ + 1;
   const int num_axes = bottom[0]->num_axes();
+
+  // 要卷积的数据空间的维度
   num_spatial_axes_ = num_axes - first_spatial_axis;
-  CHECK_GE(num_spatial_axes_, 0);
+
+  CHECK_GE(num_spatial_axes_, 0); 
   vector<int> spatial_dim_blob_shape(1, std::max(num_spatial_axes_, 1));
+
   // Setup filter kernel dimensions (kernel_shape_).
   kernel_shape_.Reshape(spatial_dim_blob_shape);
   int* kernel_shape_data = kernel_shape_.mutable_cpu_data();
@@ -44,6 +49,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   for (int i = 0; i < num_spatial_axes_; ++i) {
     CHECK_GT(kernel_shape_data[i], 0) << "Filter dimensions must be nonzero.";
   }
+
   // Setup stride dimensions (stride_).
   stride_.Reshape(spatial_dim_blob_shape);
   int* stride_data = stride_.mutable_cpu_data();
@@ -68,6 +74,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       CHECK_GT(stride_data[i], 0) << "Stride dimensions must be nonzero.";
     }
   }
+
   // Setup pad dimensions (pad_).
   pad_.Reshape(spatial_dim_blob_shape);
   int* pad_data = pad_.mutable_cpu_data();
@@ -91,6 +98,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
           conv_param.pad((num_pad_dims == 1) ? 0 : i);
     }
   }
+
   // Setup dilation dimensions (dilation_).
   dilation_.Reshape(spatial_dim_blob_shape);
   int* dilation_data = dilation_.mutable_cpu_data();
@@ -105,6 +113,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     dilation_data[i] = (num_dilation_dims == 0) ? kDefaultDilation :
                        conv_param.dilation((num_dilation_dims == 1) ? 0 : i);
   }
+  
   // Special case: im2col is the identity for 1x1 convolution with stride 1
   // and no padding, so flag for skipping the buffer and transformation.
   is_1x1_ = true;
@@ -113,6 +122,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
         kernel_shape_data[i] == 1 && stride_data[i] == 1 && pad_data[i] == 0;
     if (!is_1x1_) { break; }
   }
+
   // Configure output channels and groups.
   channels_ = bottom[0]->shape(channel_axis_);
   num_output_ = this->layer_param_.convolution_param().num_output();
@@ -128,6 +138,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     conv_out_channels_ = num_output_;
     conv_in_channels_ = channels_;
   }
+
   // Handle the parameters: weights and biases.
   // - blobs_[0] holds the filter weights
   // - blobs_[1] holds the biases (optional)
@@ -137,6 +148,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   for (int i = 0; i < num_spatial_axes_; ++i) {
     weight_shape.push_back(kernel_shape_data[i]);
   }
+
   bias_term_ = this->layer_param_.convolution_param().bias_term();
   vector<int> bias_shape(bias_term_, num_output_);
   if (this->blobs_.size() > 0) {
@@ -216,6 +228,7 @@ void BaseConvolutionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   }
   col_offset_ = kernel_dim_ * conv_out_spatial_dim_;
   output_offset_ = conv_out_channels_ * conv_out_spatial_dim_ / group_;
+
   // Setup input dimensions (conv_input_shape_).
   vector<int> bottom_dim_blob_shape(1, num_spatial_axes_ + 1);
   conv_input_shape_.Reshape(bottom_dim_blob_shape);
@@ -254,6 +267,7 @@ void BaseConvolutionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   }
 }
 
+// 卷积操作的正向传播，由输入计算卷积之后的输出.
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::forward_cpu_gemm(const Dtype* input,
     const Dtype* weights, Dtype* output, bool skip_im2col) {
@@ -272,6 +286,7 @@ void BaseConvolutionLayer<Dtype>::forward_cpu_gemm(const Dtype* input,
   }
 }
 
+// 正向传播，对卷积之后的结果加上bias, 每一个输出的channel的全部元素的bias相同。
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::forward_cpu_bias(Dtype* output,
     const Dtype* bias) {
@@ -280,6 +295,7 @@ void BaseConvolutionLayer<Dtype>::forward_cpu_bias(Dtype* output,
       (Dtype)1., output);
 }
 
+// 梯度的反向传播：求卷积层输入的梯度值.
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::backward_cpu_gemm(const Dtype* output,
     const Dtype* weights, Dtype* input) {
@@ -298,6 +314,8 @@ void BaseConvolutionLayer<Dtype>::backward_cpu_gemm(const Dtype* output,
   }
 }
 
+/** 求出权值参数的梯度。 一个kernel中的权值对对应的输出的channel中的所有输出值都有贡献的。
+  */
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::weight_cpu_gemm(const Dtype* input,
     const Dtype* output, Dtype* weights) {
@@ -314,6 +332,10 @@ void BaseConvolutionLayer<Dtype>::weight_cpu_gemm(const Dtype* input,
   }
 }
 
+/** 偏置的反向传播函数, 从top块的梯度中求bias的梯度.
+    在卷积操作中，输出有多少个channel,bias就有多少个, 每一个channel中的输出值都使用了
+    相同的bais, 求bias的梯度时，把相同channel的输出值的梯度相加就可。
+  */
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::backward_cpu_bias(Dtype* bias,
     const Dtype* input) {

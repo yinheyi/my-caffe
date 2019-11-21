@@ -74,8 +74,7 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   Blob<int> conv_input_shape_;
   /// @brief The spatial dimensions of the col_buffer.
   vector<int> col_buffer_shape_;
-  /// @brief The spatial dimensions of the output.
-  vector<int> output_shape_;
+  /// @brief The spatial dimensions of the output.  vector<int> output_shape_;
   const vector<int>* bottom_shape_;
 
   int num_spatial_axes_;
@@ -91,7 +90,7 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   int num_output_;
   bool bias_term_;
   bool is_1x1_;
-  bool force_nd_im2col_;
+  bool force_nd_im2col_;    // 是否使用通用的n维的im2col函数。
 
  private:
   // wrap im2col/col2im so we don't have to remember the (long) argument lists
