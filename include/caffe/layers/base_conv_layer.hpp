@@ -58,7 +58,7 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   }
   // reverse_dimensions should return true iff we are implementing deconv, so
   // that conv helpers know which dimensions are which.
-  virtual bool reverse_dimensions() = 0;
+  virtual bool reverse_dimensions() = 0;    // 为true时，表示进行反卷积操作。
   // Compute height_out_ and width_out_ from other parameters.
   virtual void compute_output_shape() = 0;
 
@@ -78,17 +78,17 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   const vector<int>* bottom_shape_;
 
   int num_spatial_axes_;
-  int bottom_dim_;
-  int top_dim_;
+  int bottom_dim_;      // 单个样本输入的总元素数目。
+  int top_dim_;         // 一个样本输出的总元素数目。
 
-  int channel_axis_;
-  int num_;
+  int channel_axis_;    // 通道数对应的轴
+  int num_;             // 输入的样本数
   int channels_;
-  int group_;
+  int group_;          // 分组卷积时，分多少组。 
   int out_spatial_dim_;
-  int weight_offset_;
-  int num_output_;
-  bool bias_term_;
+  int weight_offset_; // 进行分组卷积时，每一组需要的weight数目。
+  int num_output_;    // top层输出的通道数。
+  bool bias_term_;    // 是否增加偏置值。
   bool is_1x1_;
   bool force_nd_im2col_;    // 是否使用通用的n维的im2col函数。
 
@@ -155,17 +155,18 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   }
 #endif
 
-  int num_kernels_im2col_;
-  int num_kernels_col2im_;
+  int num_kernels_im2col_;   // 不知道它干什么的，代码中没有使用。
+  int num_kernels_col2im_;   // 不知道它干什么的，代码中没有使用。
   int conv_out_channels_;
   int conv_in_channels_;
-  int conv_out_spatial_dim_;
-  int kernel_dim_;
-  int col_offset_;
-  int output_offset_;
+  int conv_out_spatial_dim_; // 
+  int kernel_dim_;           // 生成一个输出的channel时需要的核的权值个数(要考虑分组卷积的影响)
+  int col_offset_;           // 分组卷积时，每一组需要的column的元素。
+  int output_offset_;        // 分组卷积时，每一个组的输出
 
-  Blob<Dtype> col_buffer_;
-  Blob<Dtype> bias_multiplier_;
+  Blob<Dtype> col_buffer_;     // 卷积过程中，先把输入进行im2col, 然后再使用矩阵运算，该值保存column的值。 
+.
+  Blob<Dtype> bias_multiplier_;    // 全是1, 用于矩阵与向量相乘实现累加。
 };
 
 }  // namespace caffe
