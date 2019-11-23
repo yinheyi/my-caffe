@@ -32,13 +32,44 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   // Helper functions that abstract away the column buffer and gemm arguments.
   // The last argument in forward_cpu_gemm is so that we can skip the im2col if
   // we just called weight_cpu_gemm with the same input.
+
+  /**
+    @brief 该函数操作的是卷积操作. 
+    @param [in]  input       卷积的输入
+    @param [in]  weights     卷积核的权值
+    @param [out] output      卷积的输出
+    @param [in]  skip_im2col 是否不需要对输入执行im2ol的操作(只卷积核为1个元素时，就不需要im2col的操作)
+    */
   void forward_cpu_gemm(const Dtype* input, const Dtype* weights,
       Dtype* output, bool skip_im2col = false);
+  /**
+    @brief 把偏置增加到卷积操作的输出结果上, 输出的同一个通道的增加相同的偏置。
+    @param [in,out] output 卷积的输出结果, 对它加偏置值。
+    @param [in] bias 要增加的偏置值。
+    */
   void forward_cpu_bias(Dtype* output, const Dtype* bias);
-  void backward_cpu_gemm(const Dtype* input, const Dtype* weights,
-      Dtype* output);
-  void weight_cpu_gemm(const Dtype* input, const Dtype* output, Dtype*
-      weights);
+
+  /**
+    @brief 该函数计算卷积的输入的梯度
+    @param [in]  input  卷积层输出的梯度值，也就是top块的梯度值。
+    @param [in]  weight 卷积操作时的卷积核的权值。
+    @param [out] output 计算得到的输入的梯度值。
+    */
+  void backward_cpu_gemm(const Dtype* input, const Dtype* weights, Dtype* output);
+
+  /**
+    @brief 该函数计算卷积核的权值梯度
+    @param [in]  input  卷积层输入值。
+    @param [in]  output 卷积层输出的的梯度值, 也就是top块的梯度值。
+    @param [out] weight 计算得到的卷积核的权值的梯度。
+    */
+  void weight_cpu_gemm(const Dtype* input, const Dtype* output, Dtype* weights);
+
+  /**
+    @brief 该函数计算偏置的梯度
+    @param [in]  input 卷积层输出的梯度值，也就是top块的梯度值。
+    @param [out] bias  计算得到的偏置的梯度。
+    */
   void backward_cpu_bias(Dtype* bias, const Dtype* input);
 
 #ifndef CPU_ONLY
