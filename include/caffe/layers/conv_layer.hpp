@@ -27,6 +27,7 @@ namespace caffe {
  *   be filtered. col2im restores the output spatial structure by rolling up
  *   the output channel N' columns of the output matrix.
  */
+// 定义了卷积操作的类, 看完base_conv文件之后，看该类很简单的。
 template <typename Dtype>
 class ConvolutionLayer : public BaseConvolutionLayer<Dtype> {
  public:
@@ -67,15 +68,22 @@ class ConvolutionLayer : public BaseConvolutionLayer<Dtype> {
   virtual inline const char* type() const { return "Convolution"; }
 
  protected:
-  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+  /** @brief 卷积操作的前向传播.  */ 
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
+
+  /** @brief 卷积操作的反向传播.  */ 
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  /** @brief 该函数的作用是指是否是反卷积操作？ 对于conv层返回false, 对应deconv层，返回true. */
   virtual inline bool reverse_dimensions() { return false; }
+
+  /**
+    @brief 计算卷积的输出后的shape, 例如输入5*5, 卷积核为4*4, 步长为1, 无pad, 则输出为 2*2.
+    */
   virtual void compute_output_shape();
 };
 

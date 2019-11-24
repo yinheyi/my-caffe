@@ -5,6 +5,7 @@
 namespace caffe {
 
 template <typename Dtype>
+/* 卷积输出的大小的计算，这很重要。*/
 void ConvolutionLayer<Dtype>::compute_output_shape() {
   const int* kernel_shape_data = this->kernel_shape_.cpu_data();
   const int* stride_data = this->stride_.cpu_data();
@@ -14,6 +15,7 @@ void ConvolutionLayer<Dtype>::compute_output_shape() {
   for (int i = 0; i < this->num_spatial_axes_; ++i) {
     // i + 1 to skip channel axis
     const int input_dim = this->input_shape(i + 1);
+    // 这里的代码是核心，说明了计算卷积之后输出大小的公式。
     const int kernel_extent = dilation_data[i] * (kernel_shape_data[i] - 1) + 1;
     const int output_dim = (input_dim + 2 * pad_data[i] - kernel_extent)
         / stride_data[i] + 1;
@@ -21,10 +23,12 @@ void ConvolutionLayer<Dtype>::compute_output_shape() {
   }
 }
 
+// 前向传播
 template <typename Dtype>
 void ConvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
+  // 遍历每一个bottom块
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* top_data = top[i]->mutable_cpu_data();
@@ -39,6 +43,7 @@ void ConvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 }
 
+// 梯度的反向传播，包含偏置, 权值和输入的数据的梯度
 template <typename Dtype>
 void ConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
@@ -48,14 +53,22 @@ void ConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const Dtype* top_diff = top[i]->cpu_diff();
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* bottom_diff = bottom[i]->mutable_cpu_diff();
+
     // Bias gradient, if necessary.
+    // 偏置的反向传播, param_propagate_down_[1]指明了偏置是否需要反向传播。
     if (this->bias_term_ && this->param_propagate_down_[1]) {
       Dtype* bias_diff = this->blobs_[1]->mutable_cpu_diff();
       for (int n = 0; n < this->num_; ++n) {
         this->backward_cpu_bias(bias_diff, top_diff + n * this->top_dim_);
       }
     }
+
+    // 梯度与输入数据的梯度反向传播
+    // param_propagate_down_[0]指明了权值是否需要反向传播
+    // propagate_down[i]指明了第i个bottom块是否需要反向传播。
     if (this->param_propagate_down_[0] || propagate_down[i]) {
+
+      // 遍历每一个样本，求它们的相应梯度值。
       for (int n = 0; n < this->num_; ++n) {
         // gradient w.r.t. weight. Note that we will accumulate diffs.
         if (this->param_propagate_down_[0]) {
