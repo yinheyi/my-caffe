@@ -25,6 +25,11 @@ namespace caffe {
  *   padding is removed from the output rather than added to the input, and
  *   stride results in upsampling rather than downsampling).
  */
+
+/**
+  反卷积操作: 整个求解过程就是卷积操作的反过程。输入通过权值矩阵相乘得到col矩阵，
+  然后通过col2im操作，得到输出。
+ */
 template <typename Dtype>
 class DeconvolutionLayer : public BaseConvolutionLayer<Dtype> {
  public:
@@ -34,15 +39,20 @@ class DeconvolutionLayer : public BaseConvolutionLayer<Dtype> {
   virtual inline const char* type() const { return "Deconvolution"; }
 
  protected:
+  /** @brief 网络的正向传播。*/
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+
+  /** @brief 网络的反向传播。  */
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual inline bool reverse_dimensions() { return true; }
+
+  /** @brief 由输入求输出的shape。  */
   virtual void compute_output_shape();
 };
 

@@ -4,6 +4,10 @@
 
 namespace caffe {
 
+/**
+  @brief 由输入求输出的值。通过计算的公式可以看出来，正好与卷积过程的公式相反, 输入作输出，
+  输出作输入。
+  */
 template <typename Dtype>
 void DeconvolutionLayer<Dtype>::compute_output_shape() {
   const int* kernel_shape_data = this->kernel_shape_.cpu_data();
@@ -21,6 +25,10 @@ void DeconvolutionLayer<Dtype>::compute_output_shape() {
   }
 }
 
+/**
+  @brief 正向传播, 通过卷积层的反向传播函数来求。具体看一下base_conv.cpp文件中的backward_cpu_gemm,
+  就知道它在做什么了。
+ */
 template <typename Dtype>
 void DeconvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
@@ -29,8 +37,10 @@ void DeconvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* top_data = top[i]->mutable_cpu_data();
     for (int n = 0; n < this->num_; ++n) {
+      // 注意，这里使用了backward_cpu_gemm.
       this->backward_cpu_gemm(bottom_data + n * this->bottom_dim_, weight,
           top_data + n * this->top_dim_);
+      // 加上偏置。
       if (this->bias_term_) {
         const Dtype* bias = this->blobs_[1]->cpu_data();
         this->forward_cpu_bias(top_data + n * this->top_dim_, bias);
@@ -39,6 +49,8 @@ void DeconvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 }
 
+
+// 反向传播。
 template <typename Dtype>
 void DeconvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
@@ -48,6 +60,7 @@ void DeconvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const Dtype* top_diff = top[i]->cpu_diff();
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* bottom_diff = bottom[i]->mutable_cpu_diff();
+
     // Bias gradient, if necessary.
     if (this->bias_term_ && this->param_propagate_down_[1]) {
       Dtype* bias_diff = this->blobs_[1]->mutable_cpu_diff();
@@ -56,9 +69,12 @@ void DeconvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       }
     }
     if (this->param_propagate_down_[0] || propagate_down[i]) {
+
+      // 遍历每一个样本求反向的梯度。
       for (int n = 0; n < this->num_; ++n) {
         // Gradient w.r.t. weight. Note that we will accumulate diffs.
         if (this->param_propagate_down_[0]) {
+          // 注意weight_cpu_gemm函数的参数输入，去看看该函数的定义。
           this->weight_cpu_gemm(top_diff + n * this->top_dim_,
               bottom_data + n * this->bottom_dim_, weight_diff);
         }
