@@ -27,8 +27,10 @@ class PoolingLayer : public Layer<Dtype> {
   virtual inline const char* type() const { return "Pooling"; }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int MinTopBlobs() const { return 1; }
+
   // MAX POOL layers can output an extra top blob for the mask;
   // others can only output the pooled inputs.
+  // top[1]的作用与成员变量max_idx_或rand_idex_的作用是相同的，都是保存在pooling过程中，pooling的输出是哪一个pooling的输入元素。
   virtual inline int MaxTopBlobs() const {
     return (this->layer_param_.pooling_param().pool() ==
             PoolingParameter_PoolMethod_MAX) ? 2 : 1;
@@ -48,12 +50,13 @@ class PoolingLayer : public Layer<Dtype> {
   int stride_h_, stride_w_;
   int pad_h_, pad_w_;
   int channels_;
-  int height_, width_;
-  int pooled_height_, pooled_width_;
-  bool global_pooling_;
-  PoolingParameter_RoundMode round_mode_;
-  Blob<Dtype> rand_idx_;
-  Blob<int> max_idx_;
+  int height_, width_;    // pooling 区域的高与宽。
+  int pooled_height_, pooled_width_;    // pooling后的输出的高与宽。
+  bool global_pooling_;   // 如果是global_pooling的话，就是在整个w * h上进行pooling，输出一个元素。
+  PoolingParameter_RoundMode round_mode_;    // 当pooling的输出不是整数时，进行floor()还是ceil().
+
+  Blob<int> max_idx_;   // 在最大值pooling过程中，保存pooling后的输出是哪一个输入。
+  Blob<Dtype> rand_idx_; // 在随机pooling过程中，保存pooling后的输出是哪一个输入。
 };
 
 }  // namespace caffe
