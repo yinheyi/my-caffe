@@ -271,9 +271,9 @@ class Blob {
  protected:
   shared_ptr<SyncedMemory> data_;        // blob块中data数据的指针
   shared_ptr<SyncedMemory> diff_;        // blob块中diff数据的指针
-  shared_ptr<SyncedMemory> shape_data_;  // blob块中diff数据的指针
+  shared_ptr<SyncedMemory> shape_data_;
   vector<int> shape_;      // 该blob块的形状, 如[2,4,4]
-  int count_;              // 该blob块中数据总数
+  int count_;              // 该blob块中数据总数, 
   int capacity_;           // 该blob块的总容量
 
   DISABLE_COPY_AND_ASSIGN(Blob);

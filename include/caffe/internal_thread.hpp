@@ -25,7 +25,7 @@ class InternalThread {
     例(见common.h/common.cpp文件).  新创建的Caffe对象的成员变量是使用当前线程中值来
     初始化的.
    */
-  void StartInternalThread();
+  void StartInternalThrad();
 
   /** @brief 中断子线程，并等待子线程结束，然后才返回。 */
   void StopInternalThread();
