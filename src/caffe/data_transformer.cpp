@@ -39,8 +39,7 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
 }
 
 template<typename Dtype>
-void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Dtype* transformed_data) {
+void DataTransformer<Dtype>::Transform(const Datum& datum, Dtype* transformed_data) {
   const string& data = datum.data();
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
@@ -126,11 +125,10 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   }
 }
 
-
 template<typename Dtype>
-void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Blob<Dtype>* transformed_blob) {
-  // If datum is encoded, decode and transform the cv::image.
+void DataTransformer<Dtype>::Transform(const Datum& datum, Blob<Dtype>* transformed_blob) {
+  /* 如果数据进行了编码操作(如jpg等图片类型)，使用OPENCV进行解码，并转换为image的矩阵。
+     然后调用其它函数来完成转换。 */
   if (datum.encoded()) {
 #ifdef USE_OPENCV
     CHECK(!(param_.force_color() && param_.force_gray()))
@@ -153,17 +151,18 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     }
   }
 
-  const int crop_size = param_.crop_size();
+  // 正常数据
+  /** 验证转换前与转换后的容器大小对应相同。 */
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
   const int datum_width = datum.width();
 
-  // Check dimensions.
   const int channels = transformed_blob->channels();
   const int height = transformed_blob->height();
   const int width = transformed_blob->width();
   const int num = transformed_blob->num();
 
+  const int crop_size = param_.crop_size();
   CHECK_EQ(channels, datum_channels);
   CHECK_LE(height, datum_height);
   CHECK_LE(width, datum_width);
@@ -177,13 +176,13 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     CHECK_EQ(datum_width, width);
   }
 
+  // 调用其它函数完成转换。
   Dtype* transformed_data = transformed_blob->mutable_cpu_data();
   Transform(datum, transformed_data);
 }
 
 template<typename Dtype>
-void DataTransformer<Dtype>::Transform(const vector<Datum> & datum_vector,
-                                       Blob<Dtype>* transformed_blob) {
+void DataTransformer<Dtype>::Transform(const vector<Datum> & datum_vector, Blob<Dtype>* transformed_blob) {
   const int datum_num = datum_vector.size();
   const int num = transformed_blob->num();
   const int channels = transformed_blob->channels();
@@ -223,14 +222,12 @@ void DataTransformer<Dtype>::Transform(const vector<cv::Mat> & mat_vector,
 }
 
 template<typename Dtype>
-void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
-                                       Blob<Dtype>* transformed_blob) {
-  const int crop_size = param_.crop_size();
+void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img, Blob<Dtype>* transformed_blob) {
+  // 检测转换前与转换后的数据空间的正确性。
   const int img_channels = cv_img.channels();
   const int img_height = cv_img.rows;
   const int img_width = cv_img.cols;
 
-  // Check dimensions.
   const int channels = transformed_blob->channels();
   const int height = transformed_blob->height();
   const int width = transformed_blob->width();
@@ -240,6 +237,10 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
   CHECK_LE(height, img_height);
   CHECK_LE(width, img_width);
   CHECK_GE(num, 1);
+  const int crop_size = param_.crop_size();
+  CHECK_GT(img_channels, 0);
+  CHECK_GE(img_height, crop_size);
+  CHECK_GE(img_width, crop_size);
 
   CHECK(cv_img.depth() == CV_8U) << "Image data type must be unsigned byte";
 
@@ -248,10 +249,6 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
-  CHECK_GT(img_channels, 0);
-  CHECK_GE(img_height, crop_size);
-  CHECK_GE(img_width, crop_size);
-
   Dtype* mean = NULL;
   if (has_mean_file) {
     CHECK_EQ(img_channels, data_mean_.channels());
@@ -259,6 +256,8 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
     CHECK_EQ(img_width, data_mean_.width());
     mean = data_mean_.mutable_cpu_data();
   }
+
+  // 保存mean数据至vector中.
   if (has_mean_values) {
     CHECK(mean_values_.size() == 1 || mean_values_.size() == img_channels) <<
      "Specify either 1 mean_value or as many as channels: " << img_channels;
@@ -270,9 +269,12 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
     }
   }
 
+
+  // 裁剪
   int h_off = 0;
   int w_off = 0;
   cv::Mat cv_cropped_img = cv_img;
+  // 它这里借助了opencv的函数进行裁剪操作。 
   if (crop_size) {
     CHECK_EQ(crop_size, height);
     CHECK_EQ(crop_size, width);
@@ -284,17 +286,20 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
       h_off = (img_height - crop_size) / 2;
       w_off = (img_width - crop_size) / 2;
     }
+    // 求得裁剪框并裁剪
     cv::Rect roi(w_off, h_off, crop_size, crop_size);
     cv_cropped_img = cv_img(roi);
   } else {
     CHECK_EQ(img_height, height);
     CHECK_EQ(img_width, width);
   }
-
   CHECK(cv_cropped_img.data);
+
 
   Dtype* transformed_data = transformed_blob->mutable_cpu_data();
   int top_index;
+
+  // 因为opencv的数据结构是先h,再w, 再channel, 所以这里的三个for循环这么写。
   for (int h = 0; h < height; ++h) {
     const uchar* ptr = cv_cropped_img.ptr<uchar>(h);
     int img_index = 0;
@@ -305,12 +310,11 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
         } else {
           top_index = (c * height + h) * width + w;
         }
-        // int top_index = (c * height + h) * width + w;
         Dtype pixel = static_cast<Dtype>(ptr[img_index++]);
         if (has_mean_file) {
-          int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
-          transformed_data[top_index] =
-            (pixel - mean[mean_index]) * scale;
+          // 从mean的blob块中找到对应的mean值。
+          int mean_index = (c * img_height + h_off + h) * img_width + w_off + w; 
+          transformed_data[top_index] = (pixel - mean[mean_index]) * scale;
         } else {
           if (has_mean_values) {
             transformed_data[top_index] =
