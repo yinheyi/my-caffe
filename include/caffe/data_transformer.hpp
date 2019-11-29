@@ -59,57 +59,46 @@ class DataTransformer {
 #endif  // USE_OPENCV
 
   /**
-   * @brief Applies the same transformation defined in the data layer's
-   * transform_param block to all the num images in a input_blob.
-   *
-   * @param input_blob
-   *    A Blob containing the data to be transformed. It applies the same
-   *    transformation to all the num images in the blob.
-   * @param transformed_blob
-   *    This is destination blob, it will contain as many images as the
-   *    input blob. It can be part of top blob's data.
-   */
+    @brief 把保存到input_blob块内的数据进行转换。 Blob<Dtype>* =====> Blob<Dtype>*
+    @param [in]  input_blob 要转换的输入数据。
+    @param [out] transformed_blob 转换之后存放的数据。
+    input_blob内可能存在多个图片，使用相同的参数进行转换。 
+    */
   void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob);
 
   /**
-   * @brief Infers the shape of transformed_blob will have when
-   *    the transformation is applied to the data.
-   *
-   * @param datum
-   *    Datum containing the data to be transformed.
-   */
+    @brief 根据datum内的数据，推测出数据的shape,并返回.
+    @param [in] datum 输入的数据块
+    @return 返回数据的shape值, 是一个vector.
+    */
   vector<int> InferBlobShape(const Datum& datum);
+
   /**
-   * @brief Infers the shape of transformed_blob will have when
-   *    the transformation is applied to the data.
-   *    It uses the first element to infer the shape of the blob.
-   *
-   * @param datum_vector
-   *    A vector of Datum containing the data to be transformed.
-   */
+    @brief 根据vector<datum>内的每一个数据，推测出数据的shape,并返回.
+    @param [in] datum 输入的数据块
+    @return 返回数据的shape值, 是一个vector.
+    */
   vector<int> InferBlobShape(const vector<Datum> & datum_vector);
 
 #ifdef USE_OPENCV
+
   /**
-   * @brief Infers the shape of transformed_blob will have when
-   *    the transformation is applied to the data.
-   *    It uses the first element to infer the shape of the blob.
-   *
-   * @param mat_vector
-   *    A vector of Mat containing the data to be transformed.
-   */
+    @brief 根据vector<cv::Mat>内的每一个数据，推测出数据的shape,并返回.
+    @param [in] datum 输入的数据块
+    @return 返回数据的shape值, 是一个vector.
+    */
   vector<int> InferBlobShape(const vector<cv::Mat> & mat_vector);
+
   /**
-   * @brief Infers the shape of transformed_blob will have when
-   *    the transformation is applied to the data.
-   *
-   * @param cv_img
-   *    cv::Mat containing the data to be transformed.
-   */
+    @brief 根据cv::Mat内的数据，推测出数据的shape,并返回.
+    @param [in] datum 输入的数据块
+    @return 返回数据的shape值, 是一个vector.
+    */
   vector<int> InferBlobShape(const cv::Mat& cv_img);
 #endif  // USE_OPENCV
 
  protected:
+
   /**
     @brief 该函数产生一个在区间[0, n)内的整数值。
     @param [in] 上边界(不包含)

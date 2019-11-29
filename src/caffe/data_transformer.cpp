@@ -38,6 +38,8 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
   }
 }
 
+
+// 该函数具体实现。
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum, Dtype* transformed_data) {
   const string& data = datum.data();
@@ -360,9 +362,10 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   CHECK_GE(input_height, height);
   CHECK_GE(input_width, width);
 
-
   const Dtype scale = param_.scale();
-  const bool do_mirror = param_.mirror() && Rand(2);
+  // 我认为不应该放到这里，而是放到下面的for循环内，要不然的话，该blob块内的所有图片要么镜像要么不镜像了。
+  // 而不是有的图片镜像有的图片不镜像呢。
+  const bool do_mirror = param_.mirror() && Rand(2); 
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
