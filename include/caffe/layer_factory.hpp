@@ -142,6 +142,10 @@ class LayerRegistry {
 
 
 /** @brief  该类仅仅是对AddCreator函数的一层封装啊，为什么要这么搞呢，看不明白啊。
+
+    后补：通过看下面的代码知道了什么单独弄一个类来封装的原因了，目的是让一个layer
+    只注册一次,因为通过宏进行注册时会生成一个对应的类对象，如果多次注册同一个layer
+    的话，就会生成多个同名的变量了，这样就会报错了。
   */
 template <typename Dtype>
 class LayerRegisterer {

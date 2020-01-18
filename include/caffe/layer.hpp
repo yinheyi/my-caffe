@@ -291,15 +291,16 @@ class Layer {
   LayerParameter layer_param_;
   /** The phase: TRAIN or TEST */
   Phase phase_;
-  /** The vector that stores the learnable parameters as a set of blobs. */
+  /** The vector that stores the learnable parameters as a set of blobs. 
+      也就是权值参数, 比如全连接层， 该blobs_存放的就是全连接层的连接权值。 */
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   /** Vector indicating whether to compute the diff of each param blob. */
   vector<bool> param_propagate_down_;
 
   /** The vector that indicates whether each top blob has a non-zero weight in
-   *  the objective function. */
-  vector<Dtype> loss_;
-
+      the objective function. 
+      我从代码上看，该loss其实是每一个top块求loss时的权重值。 */
+  vector<Dtype> loss_;        
   /** @brief Using the CPU device, compute the layer output. */
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) = 0;

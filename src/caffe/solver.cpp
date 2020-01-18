@@ -494,6 +494,11 @@ void Solver<Dtype>::Restore(const char* state_file) {
   }
 }
 
+/** 具体为：losses_中保存了最新n次的loss值，它是一个vector,当它的size 小于average_loss的值时，说明
+    了还不够求loss值的个数，就使用已经存在的loss值求smoothed_loss的值，当vector内的个数大于或等于了
+    average_loss的值时，就根据start_iter和iter_的值求出需要被替换掉的loss值的下标，然后替换掉并更新
+    了smoothed_loss_的值。
+ */
 template <typename Dtype>
 void Solver<Dtype>::UpdateSmoothedLoss(Dtype loss, int start_iter,
     int average_loss) {
@@ -503,7 +508,7 @@ void Solver<Dtype>::UpdateSmoothedLoss(Dtype loss, int start_iter,
     smoothed_loss_ = (smoothed_loss_ * (size - 1) + loss) / size;
   } else {
     int idx = (iter_ - start_iter) % average_loss;
-    smoothed_loss_ += (loss - losses_[idx]) / average_loss;
+    smoothed_loss_ += (loss - losses_[idx]) / average_loss;     // 把loss值的变化大小在average_loss平均后加到smoothed_loss上。
     losses_[idx] = loss;
   }
 }

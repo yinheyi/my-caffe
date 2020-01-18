@@ -21,6 +21,16 @@ enum Op {
   replace_gpu_diff
 };
 
+/**
+  @brief 功能说明：blobs块内的数据与给定的buffer内的数据的相互交互操作,包括拷贝，引用。
+  @param blobs 一个vector,里面存放了多个blob数据块指针。
+  @param buffer buffer内存空间的指针
+  @param total_size 总的数据大小
+  @param op 对buffer块如何操作
+
+  当op等于copy时，把blobs块内的数据拷贝到buffer中。
+  当op为replace_**时，把buffer内的数据给blobs使用(通过引用指针的方式)
+  */
 template<typename Dtype>
 static void apply_buffers(const vector<Blob<Dtype>*>& blobs,
                           Dtype* buffer, size_t total_size, Op op) {
@@ -54,7 +64,10 @@ static void apply_buffers(const vector<Blob<Dtype>*>& blobs,
   CHECK_EQ(total_size, (ptr == buffer ? 1 : ptr - buffer));
 }
 
-// Buffer size necessary to store given blobs
+/**
+  @brief 功能描述：该函数返回给定多个blobs块总的数据的size大小,
+  即 Buffer size necessary to store given blobs
+  */
 template<typename Dtype>
 static size_t total_size(const vector<Blob<Dtype>*>& params) {
   size_t size = 0;

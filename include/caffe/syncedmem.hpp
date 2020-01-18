@@ -72,7 +72,7 @@ inline void CaffeFreeHost(void* ptr, bool use_cuda) {
 
 
 /**
-  @brief caffe中内存的管理类，主要负责了内存和显示的申请释放, 数据在cpu内存和gpu显之间
+  @brief caffe中内存的管理类，主要负责了内存和显存的申请释放, 数据在cpu内存和gpu显之间
   的同步。
 
   对于该类：要知道：

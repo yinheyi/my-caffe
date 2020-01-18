@@ -103,30 +103,41 @@ class Solver {
   string SnapshotFilename(const string& extension);
   string SnapshotToBinaryProto();
   string SnapshotToHDF5();
-  // The test routine
+
+  /** @brief 该函数分别调用Test()函数测试所有的test网络。*/
   void TestAll();
+
+  /**
+    @brief 测试给定的test网络。
+    @param [in] test_net_id 指定测试第几个test_net, 默认为第0个。 */
   void Test(const int test_net_id = 0);
+
   virtual void SnapshotSolverState(const string& model_filename) = 0;
   virtual void RestoreSolverStateFromHDF5(const string& state_file) = 0;
   virtual void RestoreSolverStateFromBinaryProto(const string& state_file) = 0;
   void DisplayOutputBlobs(const int net_id);
+
+  /**
+    @brief 功能描述：使用本次迭代求出来的loss更新smoothed_loss的值。
+    @param [in] loss         本次迭代求出来的loss的值。
+    @param [in] start_iter   开始时的迭代次数值. 它与当前iter_的值相结合，用于计算出当前的loss值要
+                             替换的最旧的loss的值的下标。
+    @param [in] average_loss 求smoothed_loss_时，表示使用最新的几次的loss值，也就是一个窗口的大小。
+    */
   void UpdateSmoothedLoss(Dtype loss, int start_iter, int average_loss);
 
   SolverParameter param_;
-  int iter_;    // 当前的
-  int current_step_;
-  shared_ptr<Net<Dtype> > net_;
-  vector<shared_ptr<Net<Dtype> > > test_nets_;
+  int iter_;                                    //< 当前进行到的迭代次数。
+  int current_step_;                            //< 它表示
+  shared_ptr<Net<Dtype> > net_;                 //< solver对应的训练的网络，即train_net, 只有一个。
+  vector<shared_ptr<Net<Dtype> > > test_nets_;  //< solver对应的测试的网络， 它可以有多个，所以是一个vector.
   vector<Callback*> callbacks_;
-  vector<Dtype> losses_;
-  Dtype smoothed_loss_;
+  vector<Dtype> losses_;                        //< 它里面存放了最新的n次迭代时的loss的值。
+  Dtype smoothed_loss_;                         //< n次迭代的平均值的loss值。
+  bool requested_early_exit_;                   //< 在训练过程中是否需要进行早停。
 
-  // A function that can be set by a client of the Solver to provide indication
-  // that it wants a snapshot saved and/or to exit early.
-  ActionCallback action_request_function_;
-
-  // True iff a request to stop early was received.
-  bool requested_early_exit_;
+  ActionCallback action_request_function_;      //< 它是一个函数指针，用于获取当前用户想要执行的action,比如 stop,snapshot.
+                                                //< 看一个util/signal_handle.hpp文件会更明白它的用途的。
 
   // Timing information, handy to tune e.g. nbr of GPUs
   Timer iteretion_timer_;
