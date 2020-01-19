@@ -67,7 +67,8 @@ BrewMap g_brew_map;              // 定义了一个全局的map,里面存放<函
 
 /**
   @brief 该宏作用是在未命名的命名空间中定义了一个类并实例化一个该类的对象，该类没有
-  任何成员变量，仅仅在析构函数 中把一个函数名与函数指针存放到g_brew_mmap中去。
+  任何成员变量，仅仅在构造函数 中把一个函数名与函数指针存放到g_brew_mmap中去。
+  这样做，可以保证只要是通过该㍶添加函数指针，就可以保证一个同名的函数只会被添加一次。
   */
 #define RegisterBrewFunction(func)           \
 namespace {                                  \
@@ -80,7 +81,7 @@ class __Registerer_##func {                  \
 __Registerer_##func g_registerer_##func;     \
 }
 
-/** @brief 功能描述：获取给定函数名的函数指针。 */
+/** @brief 功能描述：给定函数名，获取给定函数名的函数指针。 */
 static BrewFunction GetBrewFunction(const caffe::string& name) {
   if (g_brew_map.count(name)) {
     return g_brew_map[name];
@@ -140,7 +141,6 @@ caffe::Phase get_phase_from_flags(caffe::Phase default_value) {
   @brief 功能描述：处理字符串变量FLAGS_stage，它里面字符使用 comma 分隔开了，
   返回值是的多个string组成的vector. 
  */
-  @return 
 vector<string> get_stages_from_flags() {
   vector<string> stages;
   boost::split(stages, FLAGS_stage, boost::is_any_of(","));
