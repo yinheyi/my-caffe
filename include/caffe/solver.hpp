@@ -39,6 +39,7 @@ class Solver {
  public:
   explicit Solver(const SolverParameter& param);
   explicit Solver(const string& param_file);
+  virtual ~Solver() {}
   void Init(const SolverParameter& param);
   void InitTrainNet();
   void InitTestNets();
@@ -49,26 +50,32 @@ class Solver {
     */
   void SetActionFunction(ActionCallback func);
 
-  /** 
-    @brief 调用的设置的回调函数，获取需要执行的Action.
-   */
+  /** @brief 调用的设置的回调函数，获取需要执行的Action.  */
   SolverAction::Enum GetRequestedAction();
+
 
   // The main entry of the solver function. In default, iter will be zero. Pass
   // in a non-zero iter number to resume training for a pre-trained net.
   virtual void Solve(const char* resume_file = NULL);
   inline void Solve(const string& resume_file) { Solve(resume_file.c_str()); }
   void Step(int iters);
+
+
   // The Restore method simply dispatches to one of the
   // RestoreSolverStateFrom___ protected methods. You should implement these
   // methods to restore the state from the appropriate snapshot type.
+  // 它会调用RestoreSolverStateFromHDF5()函数或者RestoreSolverStateFromBinaryProto()函数。
+  // 至于调用哪个函数，由文件名的后缀决定。
   void Restore(const char* resume_file);
+
   // The Solver::Snapshot function implements the basic snapshotting utility
   // that stores the learned net. You should implement the SnapshotSolverState()
   // function that produces a SolverState protocol buffer that needs to be
   // written to disk together with the learned net.
+
+  // 第一步，把学习到的net进行snapshot.(本类已经实现)
+  // 第二步：把SolverState进行snapshot.(子类需要实现)
   void Snapshot();
-  virtual ~Solver() {}
   inline const SolverParameter& param() const { return param_; }
   inline shared_ptr<Net<Dtype> > net() { return net_; }
   inline const vector<shared_ptr<Net<Dtype> > >& test_nets() {
@@ -90,7 +97,9 @@ class Solver {
     callbacks_.push_back(value);
   }
 
+  /** @brief 当需要进行snapshot时，核查指定目录是否有写权限。 */
   void CheckSnapshotWritePermissions();
+
   /**
    * @brief Returns the solver type.
    */
@@ -100,8 +109,23 @@ class Solver {
   virtual void ApplyUpdate() = 0;
 
  protected:
+  /**
+    @brief 获取snapshot保存的文件名.
+    @param [in] externsion为保存文件名的扩展名。
+    @detail 文件名为：snapshot_prefix()+"_iter_"+迭代次数.
+    */
   string SnapshotFilename(const string& extension);
+
+  /**
+    @brief 把net当前的状态snapshot到NetParameter对应的二进制文件中。
+    @return 返回snapshot之后的文件名,它是以.caffemodel为后缀的文件。
+   */
   string SnapshotToBinaryProto();
+
+  /**
+    @brief 把net当前的状态snapshot到HDF5文件中. 
+    @return 返回snapshot之后的文件名,它是以.h5为后缀的文件。
+   */
   string SnapshotToHDF5();
 
   /** @brief 该函数分别调用Test()函数测试所有的test网络。*/

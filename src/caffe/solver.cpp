@@ -68,8 +68,8 @@ void LoadNetWeights(shared_ptr<Net<Dtype> > net,
   std::vector<std::string> model_names;
   boost::split(model_names, model_list, boost::is_any_of(","));
   for (int i = 0; i < model_names.size(); ++i) {
-    boost::trim(model_names[i]);
-    LOG(INFO) << "Finetuning from " << model_names[i];
+    boost::trim(model_names[i]);    // 删除字符串首尾的空格.
+    L OG(INFO) << "Finetuning from " << model_names[i];
     net->CopyTrainedLayersFrom(model_names[i]);
   }
 }
@@ -229,6 +229,8 @@ void Solver<Dtype>::Step(int iters) {
 
     const bool display = param_.display() && iter_ % param_.display() == 0;
     net_->set_debug_info(display && param_.debug_info());
+
+    // 这里很重要.
     // accumulate the loss and gradient
     Dtype loss = 0;
     for (int i = 0; i < param_.iter_size(); ++i) {
@@ -237,6 +239,7 @@ void Solver<Dtype>::Step(int iters) {
     loss /= param_.iter_size();
     // average the loss across iterations for smoothed reporting
     UpdateSmoothedLoss(loss, start_iter, average_loss);
+
     if (display) {
       float lapse = iteration_timer_.Seconds();
       float per_s = (iter_ - iterations_last_) / (lapse ? lapse : 1);
@@ -437,15 +440,16 @@ void Solver<Dtype>::Snapshot() {
   default:
     LOG(FATAL) << "Unsupported snapshot format.";
   }
-
   SnapshotSolverState(model_filename);
 }
 
 template <typename Dtype>
 void Solver<Dtype>::CheckSnapshotWritePermissions() {
+  // 在训练过程中，如果要进行snapshot时，要需要验证有写的权限。snapshot()的值表示进行snapshot的迭代间隔次数。
   if (Caffe::root_solver() && param_.snapshot()) {
     CHECK(param_.has_snapshot_prefix())
         << "In solver params, snapshot is specified but snapshot_prefix is not";
+
     string probe_filename = SnapshotFilename(".tempfile");
     std::ofstream probe_ofs(probe_filename.c_str());
     if (probe_ofs.good()) {
@@ -467,10 +471,13 @@ string Solver<Dtype>::SnapshotFilename(const string& extension) {
 
 template <typename Dtype>
 string Solver<Dtype>::SnapshotToBinaryProto() {
+  // 先获取文件名
   string model_filename = SnapshotFilename(".caffemodel");
   LOG(INFO) << "Snapshotting to binary proto file " << model_filename;
+  // 再写到NetParameter的数据结构中
   NetParameter net_param;
   net_->ToProto(&net_param, param_.snapshot_diff());
+  // 写到文件中.
   WriteProtoToBinaryFile(net_param, model_filename);
   return model_filename;
 }
