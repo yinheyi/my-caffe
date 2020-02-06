@@ -36,7 +36,7 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
     const LayerParameter& layer_param = param.layer(i);
     layer_idx_to_layer_name[i] = layer_param.name();
 
-    // 该for循环遍历当前layer中的每一个bottom块进行相当操作：
+    // 该for循环遍历当前layer中的每一个bottom块进行相应操作：
     for (int j = 0; j < layer_param.bottom_size(); ++j) {
       // 获取当前blob块的name.
       const string& blob_name = layer_param.bottom(j);
@@ -130,6 +130,9 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
         // 至于top_idx_to_bottom_split_idx吧，它作为一个动态的增加，每当使用一个split层中的top块，就增加1.
         // 这里求loss层会使用一个split层中的top块，所以加1了。 
         if (loss_weight) {
+          // 我觉得下面这行代码不太对啊，不应该把当前layer的所有top块的loss_weight给清空啊，应该只把当前top块
+          // 对应的loss_weight置0就可以吧,　即这样写：
+          // layer_param->set_loss_weight(j, 0);
           layer_param->clear_loss_weight();
           top_idx_to_bottom_split_idx[top_idx]++;
         }
@@ -138,7 +141,7 @@ void InsertSplits(const NetParameter& param, NetParameter* param_split) {
   }
 }
 
-// 该函数配置新生成的split层，包括配置它的bottom块，它的多个top块.
+// 该函数配置新生成的split层，包括配置它的bottom块，它的多个top块的名称。
 void ConfigureSplitLayer(const string& layer_name, const string& blob_name,
     const int blob_idx, const int split_count, const float loss_weight,
     LayerParameter* split_layer_param) {
@@ -151,8 +154,8 @@ void ConfigureSplitLayer(const string& layer_name, const string& blob_name,
         SplitBlobName(layer_name, blob_name, blob_idx, k));
     if (loss_weight) {
 
-      // 这里要注意，它只能split层中的第一个top块中的loss_weight置1了，其它的默认是0.
-      // 因为第一个top块是用于计算loss的
+      // 这里要注意，它只设置了split层中的第一个top块中的loss_weight，其它的默认是0.
+      // 因为第一个top块是用于计算loss的.
       if (k == 0) {
         split_layer_param->add_loss_weight(loss_weight);
       } else {
@@ -179,5 +182,4 @@ string SplitBlobName(const string& layer_name, const string& blob_name,
       << "_split_" << split_idx;
   return split_blob_name.str();
 }
-
 }  // namespace caffe

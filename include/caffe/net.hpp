@@ -317,9 +317,9 @@ class Net {
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   vector<string> blob_names_;
   map<string, int> blob_names_index_;
-  vector<bool> blob_need_backward_;
-  vector<Dtype> blob_loss_weights_;    /// Vector of weight in the loss (or objective) function of each net blob,
-  
+  vector<bool> blob_need_backward_;     // 每一个blob块是否需要反向传播。
+  vector<Dtype> blob_loss_weights_;     //求目标函数时每一个blob块的加权值。
+
   // 整个net中每一层layer的每一个bottom的blob块的指针保存了bottom_vecs_中，每一个blob块对应的相关属性信息保存
   // 在了bootom_id_vecs_/bottom_need_backward_等。
   vector<vector<Blob<Dtype>*> > bottom_vecs_; 
@@ -331,11 +331,14 @@ class Net {
   vector<vector<Blob<Dtype>*> > top_vecs_;
   vector<vector<int> > top_id_vecs_; 
   
-  // net的输入的blob块以及输出的blob块的指针， 以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
+  // net的输入的blob块的指针以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
   // 对应blob块的一些属性信息。
   vector<Blob<Dtype>*> net_input_blobs_;
-  vector<Blob<Dtype>*> net_output_blobs_;
   vector<int> net_input_blob_indices_; 
+
+  // net的输出的blob块指针，以及它们在整个blobs_中的下标索引值，通过这个索引值可以获取
+  // 对应blob块的一些属性信息。
+  vector<Blob<Dtype>*> net_output_blobs_;
   vector<int> net_output_blob_indices_;
   
   // 下面这几个变量的size()是相同的, net中所有的params_
@@ -346,8 +349,7 @@ class Net {
   vector<pair<int, int> > param_layer_indices_;    // layer_id 和 param_id
 
   vector<vector<int> > param_id_vecs_;
-
-  map<string, int> param_names_index_;    // 只会存放有名字的param块，这个param块用于了权值共享
+  map<string, int> param_names_index_;      // 只会存放有名字的param块，这个param块用于了权值共享
 
   //  下面几个变量的size()是相同的， 等于网络中非共享的param的个数, 这些参数是可以更新的。
   vector<Blob<Dtype>*> learnable_params_;

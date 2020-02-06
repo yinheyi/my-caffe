@@ -44,7 +44,7 @@ Net<Dtype>::Net(const string& param_file, Phase phase,
 
 template <typename Dtype>
 void Net<Dtype>::Init(const NetParameter& in_param) {
-  // 设置net的phase---- train/test.
+  // 设置net的phase, 要么是TRAIN, 要么是TEST.
   phase_ = in_param.state().phase();
 
   // 基于state_rule 过滤掉一些不符合要求的layer， 把新的net的参数保存到filtered_param中。
@@ -134,7 +134,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     
     for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
 
-        // 把当前top块的loss 存放到blob_loss_weights_中 , loss是loss_weights吗？??
+        // 把当前top块的loss weight存放到blob_loss_weights_中 , loss是loss_weights吗？??
         if (blob_loss_weights_.size() <= top_id_vecs_[layer_id][top_id])
             blob_loss_weights_.resize(top_id_vecs_[layer_id][top_id] + 1, Dtype(0));
         blob_loss_weights_[top_id_vecs_[layer_id][top_id]] = layer->loss(top_id);
@@ -148,22 +148,25 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     }
     LOG_IF(INFO, Caffe::root_solver())  << "Memory required for data: " << memory_used_ * sizeof(Dtype);
 
-    // 把当前layer的param块添加到net中。
+
     const int param_size = layer_param.param_size();
     const int num_param_blobs = layers_[layer_id]->blobs().size();
     CHECK_LE(param_size, num_param_blobs) << "Too many params specified for layer " << layer_param.name();
     ParamSpec default_param_spec;
+    // 该for循环设置param是否需要进行反向传播。
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
       const ParamSpec* param_spec = (param_id < param_size) ?
           &layer_param.param(param_id) : &default_param_spec;
       const bool param_need_backward = param_spec->lr_mult() != 0;
-      need_backward |= param_need_backward;
-      layers_[layer_id]->set_param_propagate_down(param_id, param_need_backward);
+      need_backward |= param_need_backward;    // 当前layer是否需要反向传播
+      layers_[layer_id]->set_param_propagate_down(param_id, param_need_backward);    // 每一个param是否需要反向传播。
     }
     for (int param_id = 0; param_id < num_param_blobs; ++param_id) {
       AppendParam(param, layer_id, param_id);
     }
     
+
+
     // Finally, set the backward flag
     layer_need_backward_.push_back(need_backward);
     if (need_backward) {
@@ -286,20 +289,20 @@ void Net<Dtype>::FilterNet(const NetParameter& param,
     const LayerParameter& layer_param = param.layer(i);
     const string& layer_name = layer_param.name();
 
-    /* 一个定义好的layer中,要么定义include,要么定义exclude, 别都存在啊,从下面
-       代码中可以看出来，如果都存在时，也只会按include原则来，完全忽略exclude
-       的影响了。*/
+
+
+    /* 一个定义好的layer中,要么定义include,要么定义exclude, 要么都不定义，反正不能同时存在.  */
     CHECK(layer_param.include_size() == 0 || layer_param.exclude_size() == 0)
           << "Specify either include rules or exclude rules; not both.";
-
-    /* 下面的实现很有技巧性，它的实现决定了当include和exclude同时存在时，只会
-       考虑include字段内的值来决定是否要把当前的layer包含到net中去。 */
+    // 当在layer中没有指定include字段时，该layer默认是包含的, 如果指定了include字段，则该layer默认是不包含的。
     bool layer_included = (layer_param.include_size() == 0);
+    // 当该layer默认是被包含时，检测exclude字段，判断该layer是否被排除掉。
     for (int j = 0; layer_included && j < layer_param.exclude_size(); ++j) {
       if (StateMeetsRule(net_state, layer_param.exclude(j), layer_name)) {
         layer_included = false;
       }
     }
+    // 当该layer默认不被包含时，检测include字段，判断该layer是否被包含进来。
     for (int j = 0; !layer_included && j < layer_param.include_size(); ++j) {
       if (StateMeetsRule(net_state, layer_param.include(j), layer_name)) {
         layer_included = true;
@@ -308,6 +311,7 @@ void Net<Dtype>::FilterNet(const NetParameter& param,
     if (layer_included) {
       param_filtered->add_layer()->CopyFrom(layer_param);
     }
+
   }
 }
 
@@ -362,7 +366,8 @@ bool Net<Dtype>::StateMeetsRule(const NetState& state,
   }
 
   /* 与上面类似，只不过一个是rule指定了应该包含的stage, 这个是rule中指
-     定了不应该包含的stage */
+     定了不应该包含的stage. 只有当layer中exlude的stage在net的stage都不存在时，
+     才满足条件。*/
   for (int i = 0; i < rule.not_stage_size(); ++i) {
     bool has_stage = false;
     for (int j = 0; !has_stage && j < state.stage_size(); ++j) {
@@ -390,7 +395,7 @@ void Net<Dtype>::AppendTop(const NetParameter& param, const int layer_id, const 
   const string& blob_name = (layer_param->top_size() > top_id) ?
       layer_param->top(top_id) : "(automatic)";
 
-  // 检测是不是in-place计算，在in-place计算时，bottom块和top块是相同的, 此时的话不需要为tob块新申请
+  // 检测是不是in-place计算，在in-place计算时，bottom块和top块是相同的, 此时的话不需要为top块新申请
   // 一个blob块. 
   if (blob_name_to_idx && top_id < layer_param->bottom_size() &&
       blob_name == layer_param->bottom(top_id)) {
@@ -454,8 +459,7 @@ template <typename Dtype>
 void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, const int param_id)
 {
   const LayerParameter& layer_param = layers_[layer_id]->layer_param();
-  const int param_size = layer_param.param_size();    // 在layer在参数中指定的权值数据块名称的数目, 在权值共享是会使用到。
-
+  const int param_size = layer_param.param_size();      // 在layer在参数中指定的ParamSpec的数目。
   string param_name = (param_size > param_id) ? layer_param.param(param_id).name() : "";
   if (param_name.size()) {
     param_display_names_.push_back(param_name);
