@@ -460,6 +460,8 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
 {
   const LayerParameter& layer_param = layers_[layer_id]->layer_param();
   const int param_size = layer_param.param_size();      // 在layer在参数中指定的ParamSpec的数目。
+
+  // 向param_display_name_中加入param的名字
   string param_name = (param_size > param_id) ? layer_param.param(param_id).name() : "";
   if (param_name.size()) {
     param_display_names_.push_back(param_name);
@@ -469,7 +471,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
     param_display_names_.push_back(param_display_name.str());
   }
 
-  const int net_param_id = params_.size();
+  const int net_param_id = params_.size();   // 当前要加入的param在params_(整个net全部的param的集合)中的索引号。
   params_.push_back(layers_[layer_id]->blobs()[param_id]);
   param_id_vecs_[layer_id].push_back(net_param_id);
   param_layer_indices_.push_back(make_pair(layer_id, param_id));
@@ -481,11 +483,13 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
    // 下面的对应了非权值共享的参数块的添加: 条件是:
    // 1. param_size为空时，说明有当前整个layer层都没有权值共享的机制(权值共享时需要指定ParamSpec)
    // 2. 如果param_name为空时，说明了当前的这个权值块是没有权值共享机制的。
-   // 3. 当param_name不是空但是是每一次出现时，表现当前的权值块也不是共享别人的权值. 相反，当前的权值块
+   // 3. 当param_name不是空但是是第一次出现时，表现当前的权值块也不是共享别人的权值. 相反，当前的权值块
    // 可能会被其它的layer进行权值共享。
   if (!param_size || !param_name.size() || (param_name.size() &&
       param_names_index_.find(param_name) == param_names_index_.end())) {
     param_owners_.push_back(-1);    // 因为当前的param块不共享其它的权值块，所以这个id置为-1.
+
+    // 如果当前的param中名字，就把它加到保存起来。
     if (param_name.size()) {
       param_names_index_[param_name] = net_param_id;
     }

@@ -343,13 +343,12 @@ class Net {
   
   // 下面这几个变量的size()是相同的, net中所有的params_
   vector<shared_ptr<Blob<Dtype> > > params_;  
-  vector<string> param_display_names_;
-  vector<int> param_owners_;      // 每一个param块对应的真正拥有者的ID(在params_中的索引值)
-  vector<int> learnable_param_ids_;
+  vector<string> param_display_names_;    // 整个net中所有的layer中的param_的名字集合
+  vector<int> param_owners_;              // 每一个param块对应的真正拥有者的ID(在params_中的索引值)
+  vector<int> learnable_param_ids_;       // 一个pram块对应的learnable_parm(因为权值共享的原因)在learnable_params_中的索引
   vector<pair<int, int> > param_layer_indices_;    // layer_id 和 param_id
-
-  vector<vector<int> > param_id_vecs_;
-  map<string, int> param_names_index_;      // 只会存放有名字的param块，这个param块用于了权值共享
+  vector<vector<int> > param_id_vecs_;             // 每一layer中每一个param中id.(该id就是在params_中的下标值)
+  map<string, int> param_names_index_;             // 只会存放有名字的param块，用于了权值共享时，查找一个param是否已经存在
 
   //  下面几个变量的size()是相同的， 等于网络中非共享的param的个数, 这些参数是可以更新的。
   vector<Blob<Dtype>*> learnable_params_;
