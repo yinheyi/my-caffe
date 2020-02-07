@@ -133,7 +133,6 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     LOG_IF(INFO, Caffe::root_solver()) << "Setting up " << layer_names_[layer_id];
     
     for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
-
         // 把当前top块的loss weight存放到blob_loss_weights_中 , loss是loss_weights吗？??
         if (blob_loss_weights_.size() <= top_id_vecs_[layer_id][top_id])
             blob_loss_weights_.resize(top_id_vecs_[layer_id][top_id] + 1, Dtype(0));
@@ -147,7 +146,6 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
         memory_used_ += top_vecs_[layer_id][top_id]->count();
     }
     LOG_IF(INFO, Caffe::root_solver())  << "Memory required for data: " << memory_used_ * sizeof(Dtype);
-
 
     const int param_size = layer_param.param_size();
     const int num_param_blobs = layers_[layer_id]->blobs().size();
@@ -165,9 +163,8 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       AppendParam(param, layer_id, param_id);
     }
     
-
-
-    // Finally, set the backward flag
+    // 设置当前layer的反向传播的标记位，如果当前layer需要进行反向传播，还需要设
+    // 置layer的所有top块都需要进行反向传播的标志位。
     layer_need_backward_.push_back(need_backward);
     if (need_backward) {
       for (int top_id = 0; top_id < top_id_vecs_[layer_id].size(); ++top_id) {
@@ -182,17 +179,21 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   // Also checks if all bottom blobs don't need backward computation (possible
   // because the skip_propagate_down param) and so we can skip backward
   // computation for the entire layer
-  set<string> blobs_under_loss;
+  set<string> blobs_under_loss;         // 保存对最终的loss有贡献的blobs块。
   set<string> blobs_skip_backp;
   for (int layer_id = layers_.size() - 1; layer_id >= 0; --layer_id) {
     bool layer_contributes_loss = false;
     bool layer_skip_propagate_down = true;
     for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
       const string& blob_name = blob_names_[top_id_vecs_[layer_id][top_id]];
+
+      // 如果当前layer中的某一个top块对求loss时的权值不为0，或者该blob块的名字在blobs_under_loss中,
+      // 则认为该layer对loss在贡献的.
       if (layers_[layer_id]->loss(top_id) ||
           (blobs_under_loss.find(blob_name) != blobs_under_loss.end())) {
         layer_contributes_loss = true;
       }
+      // 如果当前layer中的其中一个top块的名字没有出现在blobs_skip_backp中，则认为当前的layer不能跳过反向传播
       if (blobs_skip_backp.find(blob_name) == blobs_skip_backp.end()) {
         layer_skip_propagate_down = false;
       }
@@ -200,9 +201,9 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
         break;
     }
 
-    // If this layer can skip backward computation, also all his bottom blobs
-    // don't need backpropagation
-    if (layer_need_backward_[layer_id] && layer_skip_pro pagate_down) {
+    // 如果当前layer不需要进行反向传播，那么它的所有的bottom块也不需要进行反向传播, 
+    // 把它们置为false就可以了。
+    if (layer_need_backward_[layer_id] && layer_skip_propagate_down) {
       layer_need_backward_[layer_id] = false;
       for (int bottom_id = 0; bottom_id < bottom_vecs_[layer_id].size();
                ++bottom_id) {
@@ -210,7 +211,9 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       }
     }
 
+    // 如果layer对求最终的loss没有贡献的话，　当前layer也不需要进行反向传播.
     if (!layer_contributes_loss) { layer_need_backward_[layer_id] = false; }
+
     if (Caffe::root_solver()) {
       if (layer_need_backward_[layer_id]) {
         LOG(INFO) << layer_names_[layer_id] << " needs backward computation.";
@@ -219,8 +222,11 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
             << " does not need backward computation.";
       }
     }
-    for (int bottom_id = 0; bottom_id < bottom_vecs_[layer_id].size();
-         ++bottom_id) {
+
+
+    // 遍历当前layer的所有bottom块，如果当前layer对loss在贡献，则它的所有的bottom块对loss都有都有贡献。
+    // 如果当前layer对loss没有贡献，则所有的bottom块就不需要进行反向传播。
+    for (int bottom_id = 0; bottom_id < bottom_vecs_[layer_id].size(); ++bottom_id) {
       if (layer_contributes_loss) {
         const string& blob_name =
             blob_names_[bottom_id_vecs_[layer_id][bottom_id]];
@@ -228,6 +234,8 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
       } else {
         bottom_need_backward_[layer_id][bottom_id] = false;
       }
+
+      // 如果bottom块不需要进行反向传播，则把它记住。
       if (!bottom_need_backward_[layer_id][bottom_id]) {
         const string& blob_name =
                    blob_names_[bottom_id_vecs_[layer_id][bottom_id]];
@@ -253,13 +261,12 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   }
 
   // In the end, all remaining blobs are considered output blobs.
-  for (set<string>::iterator it = available_blobs.begin();
-      it != available_blobs.end(); ++it) {
-    LOG_IF(INFO, Caffe::root_solver())
-        << "This network produces output " << *it;
+  for (set<string>::iterator it = available_blobs.begin(); it != available_blobs.end(); ++it) {
+    LOG_IF(INFO, Caffe::root_solver()) << "This network produces output " << *it;
     net_output_blobs_.push_back(blobs_[blob_name_to_idx[*it]].get());
     net_output_blob_indices_.push_back(blob_name_to_idx[*it]);
   }
+
   for (size_t blob_id = 0; blob_id < blob_names_.size(); ++blob_id) {
     blob_names_index_[blob_names_[blob_id]] = blob_id;
   }
@@ -461,7 +468,8 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
   const LayerParameter& layer_param = layers_[layer_id]->layer_param();
   const int param_size = layer_param.param_size();      // 在layer在参数中指定的ParamSpec的数目。
 
-  // 向param_display_name_中加入param的名字
+  // 获取要添加的param的名字,如果在paramsepc中指定了名字，就用指定的名字，如果没有指定名字就为空.
+  // 然后把向param_display_name_中加入param的名字(指定的名字或者param_id索引号)
   string param_name = (param_size > param_id) ? layer_param.param(param_id).name() : "";
   if (param_name.size()) {
     param_display_names_.push_back(param_name);
@@ -471,7 +479,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
     param_display_names_.push_back(param_display_name.str());
   }
 
-  const int net_param_id = params_.size();   // 当前要加入的param在params_(整个net全部的param的集合)中的索引号。
+  const int net_param_id = params_.size();          // 当前要加入的param在params_(整个net全部的param的集合)中的索引号。
   params_.push_back(layers_[layer_id]->blobs()[param_id]);
   param_id_vecs_[layer_id].push_back(net_param_id);
   param_layer_indices_.push_back(make_pair(layer_id, param_id));
@@ -505,7 +513,8 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
 
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
-    param_owners_.push_back(owner_net_param_id);
+    param_owners_.push_back(owner_net_param_id);    // 在权值共享时，把拥有该param的id放到param_oweners_中。
+
     const pair<int, int>& owner_index = param_layer_indices_[owner_net_param_id];
     const int owner_layer_id = owner_index.first;
     const int owner_param_id = owner_index.second;
@@ -541,7 +550,8 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
     const int learnable_param_id = learnable_param_ids_[owner_net_param_id];
     learnable_param_ids_.push_back(learnable_param_id);
 
-    // 检测共享的权值的学习率和权值的衰减系数应该相同。
+    // 检测共享的权值的学习率和权值的衰减系数应该相同, 如果被共享的param没有设置lr,而共享的param设置了lr,
+    // 那么会把共享的param的lr设置成被共享的param.
     if (param_spec->has_lr_mult()) {
       if (has_params_lr_[learnable_param_id]) {
         CHECK_EQ(param_spec->lr_mult(), params_lr_[learnable_param_id])
@@ -551,6 +561,8 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id, cons
         params_lr_[learnable_param_id] = param_spec->lr_mult();
       }
     }
+
+    // 下面的代码与上面类似，这个是设置的权值衰减系数。
     if (param_spec->has_decay_mult()) {
       if (has_params_decay_[learnable_param_id]) {
         CHECK_EQ(param_spec->decay_mult(),
@@ -636,6 +648,7 @@ void Net<Dtype>::BackwardFromTo(int start, int end)
          for (int c = 0; c < before_backward_.size(); ++c)
              before_backward_[c]->run(i);
 
+         // 只有当layer需要进行backward时，才进行反向传播。
          if (layer_need_backward_[i])
          {
              layers_[i]->Backward( top_vecs_[i], bottom_need_backward_[i], bottom_vecs_[i]);
@@ -662,6 +675,8 @@ void Net<Dtype>::BackwardTo(int end)
 
 template <typename Dtype>
 void Net<Dtype>::ForwardDebugInfo(const int layer_id) {
+
+  // 求每一个top块的绝对值的平均值, 打印每一个top块的名字以及data信息。
   for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
     const Blob<Dtype>& blob = *top_vecs_[layer_id][top_id];
     const string& blob_name = blob_names_[top_id_vecs_[layer_id][top_id]];
@@ -672,8 +687,9 @@ void Net<Dtype>::ForwardDebugInfo(const int layer_id) {
         << ", top blob " << blob_name
         << " data: " << data_abs_val_mean;
   }
-  for (int param_id = 0; param_id < layers_[layer_id]->blobs().size();
-       ++param_id) {
+
+  // 求每一个param块的绝对值的平均值, 打印每一个param块的名字以及data信息。
+  for (int param_id = 0; param_id < layers_[layer_id]->blobs().size(); ++param_id) {
     const Blob<Dtype>& blob = *layers_[layer_id]->blobs()[param_id];
     const int net_param_id = param_id_vecs_[layer_id][param_id];
     const string& blob_name = param_display_names_[net_param_id];
@@ -689,6 +705,8 @@ void Net<Dtype>::ForwardDebugInfo(const int layer_id) {
 template <typename Dtype>
 void Net<Dtype>::BackwardDebugInfo(const int layer_id) {
   const vector<Blob<Dtype>*>& bottom_vec = bottom_vecs_[layer_id];
+
+  // 该for循环打印关于给定layer的所有bottom块的diff的平均值信息。
   for (int bottom_id = 0; bottom_id < bottom_vec.size(); ++bottom_id) {
     if (!bottom_need_backward_[layer_id][bottom_id]) { continue; }
     const Blob<Dtype>& blob = *bottom_vec[bottom_id];
@@ -700,6 +718,8 @@ void Net<Dtype>::BackwardDebugInfo(const int layer_id) {
         << ", bottom blob " << blob_name
         << " diff: " << diff_abs_val_mean;
   }
+
+  // 该for循环打印关于给定layer的所有param块的diff的平均值信息。
   for (int param_id = 0; param_id < layers_[layer_id]->blobs().size();
        ++param_id) {
     if (!layers_[layer_id]->param_propagate_down(param_id)) { continue; }
@@ -720,6 +740,8 @@ void Net<Dtype>::UpdateDebugInfo(const int param_id) {
   const string& layer_name = layer_names_[param_layer_indices_[param_id].first];
   const string& param_display_name = param_display_names_[param_id];
   const Dtype diff_abs_val_mean = blob.asum_diff() / blob.count();
+
+  // 打印给定参数id的param块的data信息和diff信息。
   if (param_owner < 0) {
     const Dtype data_abs_val_mean = blob.asum_data() / blob.count();
     LOG_IF(INFO, Caffe::root_solver())
@@ -739,13 +761,18 @@ void Net<Dtype>::UpdateDebugInfo(const int param_id) {
   }
 }
 
+// 遍历target中每一个layer,看看是否与source中的layer的名字相同:
+// 1. 如果相同, 就进行那个layer的blob块(这里面放的是layer的权值)内的数据共享。
+// 2. 如果不同，就忽略掉。
 template <typename Dtype>
 void Net<Dtype>::ShareTrainedLayersWith(const Net* other) {
   int num_source_layers = other->layers().size();
+
   for (int i = 0; i < num_source_layers; ++i) {
     Layer<Dtype>* source_layer = other->layers()[i].get();
     const string& source_layer_name = other->layer_names()[i];
     int target_layer_id = 0;
+
     while (target_layer_id != layer_names_.size() &&
         layer_names_[target_layer_id] != source_layer_name) {
       ++target_layer_id;
@@ -754,6 +781,7 @@ void Net<Dtype>::ShareTrainedLayersWith(const Net* other) {
       LOG(INFO) << "Ignoring source layer " << source_layer_name;
       continue;
     }
+
     DLOG(INFO) << "Copying source layer " << source_layer_name;
     vector<shared_ptr<Blob<Dtype> > >& target_blobs = layers_[target_layer_id]->blobs();
     CHECK_EQ(target_blobs.size(), source_layer->blobs().size())
@@ -962,6 +990,7 @@ void Net<Dtype>::ToHDF5(const string& filename, bool write_diff) const {
 #endif  // USE_HDF5
 }
 
+/** @brief 对所有可以学习的param块进行参数更新。*/
 template <typename Dtype>
 void Net<Dtype>::Update() {
   for (int i = 0; i < learnable_params_.size(); ++i) {
@@ -994,7 +1023,10 @@ void Net<Dtype>::ClearParamDiffs() {
 template <typename Dtype>
 void Net<Dtype>::ShareWeights() {
   for (int i = 0; i < params_.size(); ++i) {
+
+    // 不是权值共享的blob块的param_owners_对应的值为-1.
     if (param_owners_[i] < 0) { continue; }
+
     params_[i]->ShareData(*params_[param_owners_[i]]);
     params_[i]->ShareDiff(*params_[param_owners_[i]]);
   }

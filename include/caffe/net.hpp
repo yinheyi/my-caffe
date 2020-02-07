@@ -50,15 +50,23 @@ class Net {
     */ const vector<Blob<Dtype>*>& Forward(Dtype* loss = NULL);
 
   /**
-   * The From and To variants of Forward and Backward operate on the
-   * (topological) ordering by which the net is specified. For general DAG
-   * networks, note that (1) computing from one layer to another might entail
-   * extra computation on unrelated branches, and (2) computation starting in
-   * the middle may be incorrect if all of the layers of a fan-in are not
-   * included.
-   */
+    @brief 网络的前向传播函数, 计算[start, end]的layers。(左闭右闭格式)
+    @param [in] start 开始的layer的id(从0开始计数).
+    @param [in] end 终止的layer的id
+
+    The From and To variants of Forward and Backward operate on the
+    (topological) ordering by which the net is specified. For general DAG
+    networks, note that (1) computing from one layer to another might entail
+    extra computation on unrelated branches, and (2) computation starting in
+    the middle may be incorrect if all of the layers of a fan-in are not
+    included.
+    */
   Dtype ForwardFromTo(int start, int end);
+
+  /** @brief 网络的前向传播函数, 从start到最后一层layer.  */
   Dtype ForwardFrom(int start);
+
+  /** @brief 网络的前向传播函数, 从第0层到end层的layer.  */
   Dtype ForwardTo(int end);
 
   /** @brief 在网格反向传播之前，把所有权值的梯度都置为0. */
@@ -87,18 +95,20 @@ class Net {
 
   /// @brief Updates the network weights based on the diff values computed.
   void Update();
+
   /**
-   * @brief Shares weight data of owner blobs with shared blobs. 它需要使用到
-   * 成员变量 params_和param_owners_.
-   *
-   * Note: this is called by Net::Init, and thus should normally not be
-   * called manually.
+    @brief Shares weight data of owner blobs with shared blobs. 它需要使用到
+    成员变量 params_和param_owners_.
+
+    @details 对于共享权值的blob块，这些blob块直接引用别的param就可以了。
    */
   void ShareWeights();
 
   /**
-   * @brief For an already initialized net, implicitly copies (i.e., using no
-   *        additional memory) the pre-trained layers from another Net.
+   @brief For an already initialized net, implicitly copies (i.e., using no
+           additional memory) the pre-trained layers from another Net.
+
+    当前net对给定的net中具有相同名字的layer进行权值的共享。
    */
   void ShareTrainedLayersWith(const Net* other);
 
@@ -294,12 +304,18 @@ class Net {
                    const int bottom_id, set<string>* available_blobs,
                    map<string, int>* blob_name_to_idx);
 
-  /// @brief Append a new parameter blob to the net.
+  /**
+    @brief 增加一个给定layer的第param_id个的param的blob块到net中，它会被保存到成员变量 params_当中。
+    @param [in] param 当前net的参数(netparameter)
+    @param [in] layer_id 要增加的是第几个layer.
+    @param [in] param_id 要增加是layer中的第几个param块。
+    */
   void AppendParam(const NetParameter& param, const int layer_id,
                    const int param_id);
 
-  /// @brief Helper for displaying debug info in Forward.
+  /** @brief 该函数负责打印关于给定layer的前向传播之后的top块的信息，param块的信息等。 */
   void ForwardDebugInfo(const int layer_id);
+
   /// @brief Helper for displaying debug info in Backward.
   void BackwardDebugInfo(const int layer_id);
   /// @brief Helper for displaying debug info in Update.
@@ -307,10 +323,10 @@ class Net {
 
   string name_;         //< 网络的名字
   Phase phase_;         //< TRAIN or TEST
-  vector<shared_ptr<Layer<Dtype> > > layers_;    //< 当前net包含所有layers的指针
+  vector<shared_ptr<Layer<Dtype> > > layers_;   //< 当前net包含所有layers的指针
   vector<string> layer_names_;                  //< 当前net包含所有layers的名字
   map<string, int> layer_names_index_;          
-  vector<bool> layer_need_backward_;
+  vector<bool> layer_need_backward_;            //< 每一层的layer是否需要进行反向传播
   
   // 整个net的数据的blob的相关信息，所有的数据的blob块都保存在blobs_中，每一个blob块的对应的相关属性保存在了
   // blob_names_/blob_need_backward_/blob_names_index_等。
@@ -322,9 +338,9 @@ class Net {
 
   // 整个net中每一层layer的每一个bottom的blob块的指针保存了bottom_vecs_中，每一个blob块对应的相关属性信息保存
   // 在了bootom_id_vecs_/bottom_need_backward_等。
-  vector<vector<Blob<Dtype>*> > bottom_vecs_; 
+  vector<vector<Blob<Dtype>*> > bottom_vecs_;
   vector<vector<int> > bottom_id_vecs_;
-  vector<vector<bool> > bottom_need_backward_;
+  vector<vector<bool> > bottom_need_backward_;      // 每一层layer的每一个bottom块是否需要进行反向传播。
   
   // 整个net中每一层layer的每一个top的blob块的指针保存了top_vecs_中，每一个blob块对应的blob在blobs_中
   // 的索引值保存在了top_id_vecs_中了。
@@ -342,13 +358,13 @@ class Net {
   vector<int> net_output_blob_indices_;
   
   // 下面这几个变量的size()是相同的, net中所有的params_
-  vector<shared_ptr<Blob<Dtype> > > params_;  
-  vector<string> param_display_names_;    // 整个net中所有的layer中的param_的名字集合
-  vector<int> param_owners_;              // 每一个param块对应的真正拥有者的ID(在params_中的索引值)
-  vector<int> learnable_param_ids_;       // 一个pram块对应的learnable_parm(因为权值共享的原因)在learnable_params_中的索引
-  vector<pair<int, int> > param_layer_indices_;    // layer_id 和 param_id
-  vector<vector<int> > param_id_vecs_;             // 每一layer中每一个param中id.(该id就是在params_中的下标值)
-  map<string, int> param_names_index_;             // 只会存放有名字的param块，用于了权值共享时，查找一个param是否已经存在
+  vector<shared_ptr<Blob<Dtype> > > params_;        // 网络中全部layer的params(无论共享还是不共享的，者包括着)
+  vector<string> param_display_names_;              // 整个net中所有的layer中的param_的名字集合
+  vector<int> param_owners_;                        // 每一个param块对应的真正拥有者的ID(在params_中的索引值)
+  vector<int> learnable_param_ids_;                 // 一个pram块对应的learnable_parm(因为权值共享的原因)在learnable_params_中的索引
+  vector<pair<int, int> > param_layer_indices_;     // layer_id 和 param_id
+  vector<vector<int> > param_id_vecs_;              // 每一layer中每一个param中id.(该id就是在params_中的下标值)
+  map<string, int> param_names_index_;              // 只会存放有名字的param块，用于了权值共享时，查找一个param是否已经存在
 
   //  下面几个变量的size()是相同的， 等于网络中非共享的param的个数, 这些参数是可以更新的。
   vector<Blob<Dtype>*> learnable_params_;
@@ -362,10 +378,10 @@ class Net {
   /// Whether to compute and display debug info for the net.
   bool debug_info_;
   // Callbacks
-  vector<Callback*> before_forward_;
-  vector<Callback*> after_forward_;
-  vector<Callback*> before_backward_;
-  vector<Callback*> after_backward_;
+  vector<Callback*> before_forward_;        // 在正向传播之前要执行的动作
+  vector<Callback*> after_forward_;         // 在正向传播之后要执行的动作
+  vector<Callback*> before_backward_;       // 在反向传播之前要执行的动作
+  vector<Callback*> after_backward_;        // 在反向传播之后要执行的动作
 
 DISABLE_COPY_AND_ASSIGN(Net);
 };
